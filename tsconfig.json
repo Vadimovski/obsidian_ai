@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"#/*": ["src/*"] // Map the `#` alias to the `src` folder
+		},
+		"inlineSourceMap": true,
+		"inlineSources": true,
+		"module": "ESNext",
+		"target": "ES2020",
+		"allowJs": true,
+		"noImplicitAny": true,
+		"moduleResolution": "node",
+		"importHelpers": true,
+		"isolatedModules": true,
+		"strictNullChecks": true,
+		"lib": [
+			"DOM",
+			"ES2020",
+			"ES2021",
+			"ESNext"
+		]
+	},
+	"include": [
+		"**/*.ts"
+	]
+}
