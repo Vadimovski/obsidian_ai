@@ -1,20 +1,37 @@
 // Splits the input text into blocks based on a maximum word count.
-export function get_block(text: string, n: number): [string, string] {
+export function get_block(text: string, n: number): [string, string, string] {
 	let currentBlock = '';
+	let currentEnumeratedBlock = '';
 	let currentWordCount = 0;
 	let lastPeriodIndex = -1;
+	let lastEnumeratedPeriodIndex = -1;
+	let nPeriods = 1;
 
 	// Split the text into words while preserving spaces for reconstruction
 	const words = text.split(' ');
 
-	if (!words.length) return ['', '']; // Return empty strings for empty input
+	if (!words.length) return ['', '', '']; // Return empty strings for empty input
+
+	// Put the number of a first sentence in the block
+	currentEnumeratedBlock += "\"" + nPeriods + "\" ";
 
 	for (let i = 0; i < words.length; i++) {
-		const word = words[i];
+		// Get the current word
+		let word = words[i];
+
+		let isEnumerated = false;
 
 		// Update the index of the last period found in the current block
 		if (word.includes('.')) {
 			lastPeriodIndex = currentBlock.length + word.length;
+			lastEnumeratedPeriodIndex = currentEnumeratedBlock.length + word.length;
+			nPeriods++;
+			isEnumerated = true;
+			if (word.includes('\n')){
+				currentEnumeratedBlock += word.replace('\n', '\n' + "\"" + nPeriods + "\" ");
+			} else {
+				currentEnumeratedBlock += word.replace('.', '. ' + "\"" + nPeriods + "\" ");
+			}
 		}
 
 		// Increment word count
@@ -22,25 +39,31 @@ export function get_block(text: string, n: number): [string, string] {
 
 		// Add the word to the current block
 		currentBlock += word + ' ';
+		if (!isEnumerated) currentEnumeratedBlock += word + ' ';
 
 		// If the word limit is reached, attempt to split at a suitable point
 		if (currentWordCount >= n) {
 			let splitPoint = currentBlock.length; // Default split point is the end
+			let splitEnumeratedPoint = currentEnumeratedBlock.length; // Default split point is the end
 
 			// Adjust split point to the last period if available
 			if (lastPeriodIndex !== -1) {
 				splitPoint = lastPeriodIndex;
-				lastPeriodIndex = -1; // Reset after using
+				splitEnumeratedPoint = lastEnumeratedPeriodIndex;
+				// Reset after using
+				lastPeriodIndex = -1;
+				lastEnumeratedPeriodIndex = -1;
 			}
 
 			// Return the trimmed block and the remaining text
 			return [
 				currentBlock.slice(0, splitPoint).trim(),
+				currentEnumeratedBlock.slice(0, splitEnumeratedPoint).trim(),
 				currentBlock.slice(splitPoint).trim() + text.slice(currentBlock.length).trim(),
 			];
 		}
 	}
-	return [currentBlock.trim(), '']; // Return remaining block if limit was not reached
+	return [currentBlock.trim(), currentEnumeratedBlock.trim(), '']; // Return remaining block if limit was not reached
 }
 
 // Divides the input text into parts based on the last topic heading.

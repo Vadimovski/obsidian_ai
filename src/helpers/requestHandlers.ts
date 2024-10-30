@@ -4,20 +4,24 @@ import { Notice } from "obsidian";
 
 // Prompt for dividing text into general topics
 const topics_prompt =
-`I have a text, and I would like you to divide this text into high-level, abstract topics that summarize multiple sections or paragraphs. Focus on the key ideas and general themes rather than specific details or individual points made in each paragraph. The topics should provide a bird's-eye view of the text's content.
-For each section of the text, identify the main topic and present the text under corresponding headings. 
-Use the following format: 
-## Topic 
- 
-Part of the original text 
-## Topic 
- 
-Part of the original text 
- 
-And so on. 
-Each topic should be on its own line. You should put ## before each topic. Each topic should describe the meaning of the text below. Each topic should be written on the language of the original text.
-If there are topics already, do not duplicate them.
-Do not change the original text. Do not add any additional text. Do not change the sequence of the original text. The text is as follows:`;
+`Aggregate the text's content into several overarching categories. These categories should transcend individual paragraphs, encapsulating the fundamental concepts and thematic pillars that underpin the entire text.
+Emphasize thematic coherence over paragraph-level accuracy. The goal is to identify the broader narrative arcs or subject matter clusters, not to pinpoint exact paragraph starts for highly specific topics.
+Topic Naming:
+- Use broad, descriptive titles that capture the essence of each thematic cluster.
+- Avoid specificity; instead, opt for names that could encompass several of the original topics listed in your current output.
+Output format:
+- Sentence number where the topic starts: Topic name
+Note:
+- The topic name will be put before the sentence number. Do not create a topic for each sentence. The topic should summarize the paragraph.
+- You should generate at least one topic and no more than five.
+
+Keep in Mind:
+- What are the primary subject matter domains covered by the text?
+- How do the various detailed topics cluster together thematically?
+- What high-level narrative or conceptual threads weave through the text?
+- Topic name should be written on the language of the text.
+
+The text to analyze is as follows:`;
 
 // Prompt for creating a summary of the text
 const summarize_prompt =

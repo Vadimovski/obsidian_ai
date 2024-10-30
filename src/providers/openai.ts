@@ -26,7 +26,7 @@ export async function getChatGPTResponse(prompt: string, plugin: TextProcessingP
 				{role: 'system', content: 'You are a helpful assistant.'},
 				{role: 'user', content: prompt},
 			],
-			model: 'gpt-4o-mini', // Specify the model to use
+			model: plugin.settings.model, // Specify the model to use
 		}); // Return the OpenAI response
 	} catch (error) {
 		console.error("Error with OpenAI API request:", error);
