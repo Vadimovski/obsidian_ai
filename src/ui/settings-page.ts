@@ -15,7 +15,7 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 	// Method to display the settings in the tab
 	display(): void {
 		this.clearContainer(); // Clear the existing container elements
-		this.createApiKeySetting(); // Create the API key setting
+		// this.createApiKeySetting(); // Create the API key setting
 		this.createDebugToggle(); // Create the debug toggle
 		this.createModelDropdown(); // Create the model dropdown
 	}
@@ -25,18 +25,18 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 		this.containerEl.empty(); // Remove all child elements from the container
 	}
 
-	// Method to create the OpenAI API key setting
-	private createApiKeySetting(): void {
-		new Setting(this.containerEl)
-			.setName("OpenAI API Key")
-			.setDesc("Generate at https://platform.openai.com")
-			.addText(text =>
-				text
-					.setPlaceholder("Enter your OpenAI API key")
-					.setValue(this.plugin.settings.api_key) // Set the initial value
-					.onChange(async (value) => this.updateSettings("api_key", value)) // Update the API key on change
-			);
-	}
+	// // Method to create the OpenAI API key setting
+	// private createApiKeySetting(): void {
+	// 	new Setting(this.containerEl)
+	// 		.setName("OpenAI API Key")
+	// 		.setDesc("Generate at https://platform.openai.com")
+	// 		.addText(text =>
+	// 			text
+	// 				.setPlaceholder("Enter your OpenAI API key")
+	// 				.setValue(this.plugin.settings.api_key) // Set the initial value
+	// 				.onChange(async (value) => this.updateSettings("api_key", value)) // Update the API key on change
+	// 		);
+	// }
 	
 	// Method to create debug toggle
 	private createDebugToggle(): void {

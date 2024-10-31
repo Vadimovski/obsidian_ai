@@ -54,7 +54,6 @@ export async function topicsRequest(text: string, plugin: TextProcessingPlugin):
 export async function summarizeRequest(text: string, plugin: TextProcessingPlugin): Promise<string | null> {
 	try {
 		// Get response from OpenAI by sending the prompt and the text
-		// FIXME
 		const response = await getChatGPTResponse(summarize_prompt,  text, plugin);
 
 		// Check if the response and choices are valid
