@@ -1,7 +1,14 @@
 import { MarkdownView, Notice } from "obsidian";
 import TextProcessingPlugin from "#/main";
 import { topicsRequest, summarizeRequest } from "#/helpers/requestHandlers";
-import { get_block, last_topic_division, divideTextByHeadings, getFirstNWords, countWords } from "#/helpers/textProcessing";
+import {
+	get_block,
+	last_topic_division,
+	divideTextByHeadings,
+	getFirstNWords,
+	countWords,
+	insertTopic, removeTopic
+} from "#/helpers/textProcessing";
 import { topicProcessingLog, summarizationLog } from "#/helpers/logger";
 
 
@@ -27,35 +34,53 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 		// Loop through text chunks until all topics are processed
 		while (true) {
 			let [firstBlock, firstEnumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
-			console.log(firstBlock);
-			console.log(firstEnumeratedBlock);
 
-			// Fetch topics for the current block of text
-			const current_processed_topic = await topicsRequest(firstEnumeratedBlock, plugin);
-			console.log(current_processed_topic);
-			if (!current_processed_topic) {
-				new Notice('Failed to process topics');
-				return;
+			// Find topics. Retry up to 3 times
+			let retries = 0;
+			let current_processed_topic = '';
+			while (current_processed_topic.length === 0) {
+				// Fetch topics for the current block of text
+				const current_topics = await topicsRequest(firstEnumeratedBlock, plugin);
+
+				// If topics are not found, break the loop
+				if (!current_topics) {
+					new Notice('Failed to process topics');
+					return;
+				}
+
+				// Add the topics to the block of text
+				current_processed_topic = insertTopic(firstEnumeratedBlock, current_topics);
+
+				// If topics are not found, probably due to wrong gpt response, retry
+				if (current_processed_topic.length === 0) {
+					retries++;
+				}
+
+				// If retries are exceeded, break the loop
+				if (retries > 3) {
+					new Notice('Failed to process topics');
+					return;
+				}
 			}
-			return
-			//
-			// // Divide the text into sections before and after the last identified topic
-			// let [before_last_topic, after_last_topic] = last_topic_division(current_processed_topic);
-			// processed_topics_text += before_last_topic;
-			//
-			// // Log the topic processing if debug mode is enabled
-			// if (plugin.settings.debug) {
-			// 	await topicProcessingLog(firstBlock, current_processed_topic, iteration);
-			// }
-			//
-			// // If there is no remaining text, exit the loop
-			// if (!remainingText) {
-			// 	break;
-			// }
-			//
-			// // Update text to process for the next iteration
-			// text_to_process = after_last_topic + remainingText;
-			// iteration++;
+
+			// Divide the text into sections before and after the last identified topic
+			let [before_last_topic, after_last_topic] = last_topic_division(current_processed_topic);
+			processed_topics_text += before_last_topic;
+
+			// Log the topic processing if debug mode is enabled
+			if (plugin.settings.debug) {
+				await topicProcessingLog(firstBlock, current_processed_topic, iteration);
+			}
+
+			// If there is no remaining text, exit the loop
+			if (!remainingText) {
+				processed_topics_text += '\n' +after_last_topic.slice(0,-3);
+				break;
+			}
+
+			// Update text to process for the next iteration
+			text_to_process = removeTopic(after_last_topic) + ' ' + remainingText;
+			iteration++;
 		}
 
 		// Replace the original text in the editor with the processed topics text
@@ -121,7 +146,7 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 				// Handle summarization failure
 				if (!summarized_text) {
-					new Notice('Failed to process topics');
+					new Notice('Failed to summarize');
 					return;
 				}
 

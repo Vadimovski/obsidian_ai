@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import TextProcessingPlugin from "#/main";
 
 // Function to send a prompt and get the response from the OpenAI API
-export async function getChatGPTResponse(prompt: string, plugin: TextProcessingPlugin) {
+export async function getChatGPTResponse(system_prompt: string, user_prompt: string, plugin: TextProcessingPlugin) {
 	// Retrieve the API key from the plugin settings
 	const api_key = plugin.settings.api_key;
 
@@ -23,8 +23,8 @@ export async function getChatGPTResponse(prompt: string, plugin: TextProcessingP
 		// Send the prompt to OpenAI and await the response
 		return await openai_client.chat.completions.create({
 			messages: [
-				{role: 'system', content: 'You are a helpful assistant.'},
-				{role: 'user', content: prompt},
+				{role: 'system', content: system_prompt},
+				{role: 'user', content: user_prompt},
 			],
 			model: plugin.settings.model, // Specify the model to use
 		}); // Return the OpenAI response

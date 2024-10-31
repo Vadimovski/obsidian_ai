@@ -30,7 +30,7 @@ export function get_block(text: string, n: number): [string, string, string] {
 			if (word.includes('\n')){
 				currentEnumeratedBlock += word.replace('\n', '\n' + "\"" + nPeriods + "\" ");
 			} else {
-				currentEnumeratedBlock += word.replace('.', '. ' + "\"" + nPeriods + "\" ");
+				currentEnumeratedBlock += word.replace('.', '.' + "\"" + nPeriods + "\" ");
 			}
 		}
 
@@ -57,13 +57,53 @@ export function get_block(text: string, n: number): [string, string, string] {
 
 			// Return the trimmed block and the remaining text
 			return [
-				currentBlock.slice(0, splitPoint).trim(),
-				currentEnumeratedBlock.slice(0, splitEnumeratedPoint).trim(),
-				currentBlock.slice(splitPoint).trim() + text.slice(currentBlock.length).trim(),
+				currentBlock.slice(0, splitPoint),
+				currentEnumeratedBlock.slice(0, splitEnumeratedPoint) + ' ',
+				currentBlock.slice(splitPoint) + text.slice(currentBlock.length),
 			];
 		}
 	}
 	return [currentBlock.trim(), currentEnumeratedBlock.trim(), '']; // Return remaining block if limit was not reached
+}
+
+// Inserts the topics into the text
+export function insertTopic(text: string, topics: string): string {
+	// Create a map of topic numbers and their corresponding topics
+	const numberTopicMap = new Map<string, string>();
+
+	// Fill the map with topic numbers and topics
+	for (const line of topics.split('\n')) {
+		// Check if the line matches the pattern number: topic
+		const match = line.match(/(\d+): (.+)/);
+		if (match) {
+			numberTopicMap.set(`"${match[1]}" `, `\n## ${match[2]}\n\n`);
+		} else {
+			return '';
+		}
+	}
+
+	let id = 1;
+	while (true) {
+		// Find the id in the text. The format should be "\"id\" "
+		const idStr = id.toString();
+		const regex = new RegExp(`"${idStr}" `);
+		const match = text.match(regex);
+
+		if (match) {
+			// Replace the topic with the corresponding topic
+			text = text.replace(match[0], numberTopicMap.get(match[0]) || ' ');
+			id++;
+		} else {
+			break;
+		}
+	}
+	return text;
+}
+
+// Removes the first topic from the text
+export function removeTopic(text: string): string {
+	const lines = text.split('\n');
+	return lines.slice(2).join('\n');
 }
 
 // Divides the input text into parts based on the last topic heading.

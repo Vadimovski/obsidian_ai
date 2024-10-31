@@ -58,11 +58,11 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 			.addDropdown(dropdown =>
 				dropdown
 					.addOptions({
-						"gpt-3.5-turbo": "GPT-3.5-turbo",
+						"gpt-3.5-turbo-1106": "GPT-3.5-turbo",
 						"gpt-4": "GPT-4",
 						"gpt-4o": "GPT-4o",
 						"gpt-4o-mini": "GPT-4o-mini",
-						"o1-preview": "o1-preview",
+						// "o1-mini": "o1-preview",
 					})
 					.setValue(this.plugin.settings.model) // Set the initial value
 					.onChange(async (value) => this.updateSettings("model", value)) // Update the model on change
