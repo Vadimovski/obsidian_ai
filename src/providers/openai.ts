@@ -4,8 +4,7 @@ import TextProcessingPlugin from "#/main";
 // Function to send a prompt and get the response from the OpenAI API
 export async function getChatGPTResponse(system_prompt: string, user_prompt: string, plugin: TextProcessingPlugin) {
 	// Retrieve the API key from the plugin settings
-	// FIXME
-	const api_key = "sk-4Jy5bZY7KH-xQRzS9YlT6h-3f659AhhfgT46N50eE9T3BlbkFJES9LRxJ0sRiPlsttqQI3NOph9edBcoDlNYXgrUSWkA";
+	const api_key = plugin.settings.api_key;
 
 	// Raise an error if the API key is not found
 	if (!api_key) {

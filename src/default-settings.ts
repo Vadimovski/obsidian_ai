@@ -1,5 +1,5 @@
 export interface MyPluginSettings {
-	// api_key: string;
+	api_key: string;
 	summarize: boolean;
 	split: boolean;
 	debug: boolean;
@@ -8,7 +8,7 @@ export interface MyPluginSettings {
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-	// api_key: '',
+	api_key: '',
 	summarize: false,
 	split: false,
 	debug: false,
