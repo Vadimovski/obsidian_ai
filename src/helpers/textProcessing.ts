@@ -17,7 +17,7 @@ export function get_block(text: string, n: number): [string, string, string] {
 
 	for (let i = 0; i < words.length; i++) {
 		// Get the current word
-		let word = words[i];
+		const word = words[i];
 
 		let isEnumerated = false;
 
@@ -66,6 +66,39 @@ export function get_block(text: string, n: number): [string, string, string] {
 	return [currentBlock.trim(), currentEnumeratedBlock.trim(), '']; // Return remaining block if limit was not reached
 }
 
+// Identifies if a properties structure exists at the beginning of a document and returns the line number where it ends
+export function findPropertiesEnd(text: string): number {
+	// Split the input text into lines for easier processing
+	const lines = text.split('\n');
+
+	// Initialize a flag to track if we've found the start of the structure
+	let structureStarted = false;
+
+	// Iterate over each line with its index (line number, starting from 0)
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim(); // Remove leading/trailing whitespace for comparison
+
+		// Check if this is the start of the structure
+		if (!structureStarted && line === '---' || line === '...' || line.startsWith('aliases:')) {
+			structureStarted = true;
+		}
+		// If we've found the start and now encounter the end
+		else if (structureStarted && (line === '---' || line === '...')) {
+			// Return the current line number (add 1 to make it 1-indexed if desired)
+			return i + 1; // +1 to make it 1-indexed, remove if 0-indexed is preferred
+		}
+		// If we've started but haven't ended and we reach a line that clearly isn't part of the metadata (e.g., an empty line or a line without a key-value pair syntax)
+		else if (structureStarted &&!line.includes(':') && line!== '') {
+			// This could imply the end of the metadata block in some contexts, but since the spec isn't clear, we'll stick to looking for --- or...
+			// If you want to include this condition for ending, replace the below line with "return i;" and adjust the logic as per your requirements
+			// For now, this line does nothing but could be a placeholder for custom handling
+		}
+	}
+
+	// If we've iterated through all lines and haven't found the end, or if the structure was never started
+	return 0;
+}
+
 // Inserts the topics into the text
 export function insertTopic(text: string, topics: string): string {
 	// Create a map of topic numbers and their corresponding topics
@@ -83,6 +116,7 @@ export function insertTopic(text: string, topics: string): string {
 	}
 
 	let id = 1;
+	// eslint-disable-next-line no-constant-condition
 	while (true) {
 		// Find the id in the text. The format should be "\"id\" "
 		const idStr = id.toString();

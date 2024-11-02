@@ -7,7 +7,7 @@ import {
 	divideTextByHeadings,
 	getFirstNWords,
 	countWords,
-	insertTopic, removeTopic
+	insertTopic, removeTopic, findPropertiesEnd
 } from "#/helpers/textProcessing";
 import { topicProcessingLog, summarizationLog } from "#/helpers/logger";
 
@@ -28,12 +28,18 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 	// Check if there is an active markdown view
 	if (view) {
 		let text_to_process = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		// Find the end of the properties block
+		const start_line = findPropertiesEnd(text_to_process);
+		// Remove the properties block
+		text_to_process = text_to_process.split('\n').slice(start_line).join('\n');
+
 		let processed_topics_text = '';
 		let iteration = 1;
 
 		// Loop through text chunks until all topics are processed
+		// eslint-disable-next-line no-constant-condition
 		while (true) {
-			let [firstBlock, firstEnumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
+			const [firstBlock, firstEnumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
 
 			// Find topics. Retry up to 3 times
 			let retries = 0;
@@ -64,7 +70,7 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 			}
 
 			// Divide the text into sections before and after the last identified topic
-			let [before_last_topic, after_last_topic] = last_topic_division(current_processed_topic);
+			const [before_last_topic, after_last_topic] = last_topic_division(current_processed_topic);
 			processed_topics_text += before_last_topic;
 
 			// Log the topic processing if debug mode is enabled
@@ -84,7 +90,7 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 		}
 
 		// Replace the original text in the editor with the processed topics text
-		view.editor.replaceRange(processed_topics_text, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		view.editor.replaceRange(processed_topics_text, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
 	} else {
 		new Notice('No active markdown view');
 	}
@@ -106,15 +112,15 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 	// Check if there is an active markdown view
 	if (view) {
-		let text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		const text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
 		let [contents, contents_len] = divideTextByHeadings(text);
 		let iteration = 0;
 		let summary = '';
 
 		// Continue summarizing until a summary is generated
 		while (!summary) {
-			let texts_to_summarize = [''];
-			let texts_len = [0];
+			const texts_to_summarize = [''];
+			const texts_len = [0];
 			let id_texts_to_push = 0;
 
 			// Chunk the text content based on the chunk limit
