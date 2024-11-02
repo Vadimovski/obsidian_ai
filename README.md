@@ -7,23 +7,7 @@ The plugin leverages the OpenAI GPT API to both separate text by topic and summa
 
 ## Installation
 
-**1. Download the last release from the [GitHub releases](https://github.com/Nit31/obsidian-gpt-text-processing/releases)**
-
-You should download only `main.js` & `package.json` files.
-
-**2. Put the downloaded files to the plugin directory inside your vault**
-
-File structure should look like this:
-```
-/path-to-vault/.obsidian/plugins/obsidian-gpt-text-processing/main.js
-/path-to-vault/.obsidian/plugins/obsidian-gpt-text-processing/package.json
-```
-
-**3. Enable the plugin**
-- In Obsidian, open Settings.
-- In the side menu, select Community plugins.
-- Select Turn on community plugins.
-- Under Installed plugins, enable the `GPT processing` plugin by selecting the toggle button next to it.
+Search for the `File Handler AI` plugin in the Obsidian community plugins and install it.
 
 ## Getting started
 
