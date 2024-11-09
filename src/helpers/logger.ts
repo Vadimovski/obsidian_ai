@@ -1,11 +1,6 @@
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
 
-
-// Fallback to an empty string if undefined
-const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-// Get the path to the log directory
-const folderPath = resolve(homeDir, '.obsidian/logs/');
 // Set limit for log file size
 const MAX_LOG_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -51,11 +46,11 @@ async function checkAndTruncateLogFile(logFilePath: string): Promise<void> {
 
 
 // Function to log topic processing
-export async function topicProcessingLog(block: string, processedBlock: string, id: number): Promise<void> {
-	const logFilePath = resolve(folderPath, `topic_processing_log.md`);
+export async function topicProcessingLog(directory: string, block: string, processedBlock: string, id: number): Promise<void> {
+	const logFilePath = resolve(directory, `topic_processing_log.md`);
 
 	// Ensure the log directory exists
-	await ensureFolderExists(folderPath);
+	await ensureFolderExists(directory);
 
 	// Check and truncate the log file if it exceeds the size limit
 	await checkAndTruncateLogFile(logFilePath);
@@ -86,11 +81,11 @@ ${processedBlock}
 
 
 // Function to log summarization data
-export async function summarizationLog(blocks: string[], processedBlocks: string[], iteration: number): Promise<void> {
-	const logFilePath = resolve(folderPath, `summarization_log.md`);
+export async function summarizationLog(directory: string, blocks: string[], processedBlocks: string[], iteration: number): Promise<void> {
+	const logFilePath = resolve(directory, `summarization_log.md`);
 
 	// Ensure the log directory exists
-	await ensureFolderExists(folderPath);
+	await ensureFolderExists(directory);
 
 	// Check and truncate the log file if it exceeds the size limit
 	await checkAndTruncateLogFile(logFilePath);

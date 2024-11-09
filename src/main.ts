@@ -1,11 +1,11 @@
 import {addIcon, Plugin, TFile} from 'obsidian';
 import TextProcessingSettingTab from "./ui/settings-page";
-import { DEFAULT_SETTINGS, MyPluginSettings } from "./default-settings";
+import { DEFAULT_SETTINGS, pluginSettings } from "./default-settings";
 import { ProcessModal } from "./ui/process-modal";
 import {PLUGIN_ICON} from "#/ui/styles/constatnts";
 
 export default class TextProcessingPlugin extends Plugin {
-	settings: MyPluginSettings;
+	settings: pluginSettings;
 
 	async onload() {
 		await this.loadSettings();

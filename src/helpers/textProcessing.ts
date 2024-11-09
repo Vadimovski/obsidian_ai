@@ -22,7 +22,7 @@ export function get_block(text: string, n: number): [string, string, string] {
 		let isEnumerated = false;
 
 		// Update the index of the last period found in the current block
-		if (word.includes('.')) {
+		if (word.includes('.') || word.includes('?') || word.includes('!')) {
 			lastPeriodIndex = currentBlock.length + word.length;
 			lastEnumeratedPeriodIndex = currentEnumeratedBlock.length + word.length;
 			nPeriods++;
@@ -137,7 +137,11 @@ export function insertTopic(text: string, topics: string): string {
 // Removes the first topic from the text
 export function removeTopic(text: string): string {
 	const lines = text.split('\n');
-	return lines.slice(2).join('\n');
+	try {
+		return lines.slice(2).join('\n');
+	} catch (error) {
+		return '';
+	}
 }
 
 // Divides the input text into parts based on the last topic heading.

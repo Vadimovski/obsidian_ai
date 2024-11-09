@@ -10,6 +10,7 @@ import {
 	insertTopic, removeTopic, findPropertiesEnd
 } from "#/helpers/textProcessing";
 import { topicProcessingLog, summarizationLog } from "#/helpers/logger";
+import {resolve} from "path";
 
 
 // Function to divide text by topics
@@ -35,18 +36,32 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 
 		let processed_topics_text = '';
 		let iteration = 1;
+		let previous_iteration_overlap = '';
 
 		// Loop through text chunks until all topics are processed
 		// eslint-disable-next-line no-constant-condition
 		while (true) {
-			const [firstBlock, firstEnumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
+			text_to_process = previous_iteration_overlap + ' ' +text_to_process;
+			const [block, enumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
+
+			if (!block) {
+				console.error('Error generating topics. No text to process.');
+			}
+
+			if (block.trim() == previous_iteration_overlap.trim()) {
+				new Notice('Failed to create topics. Please divide the text into sentences and try again.');
+				console.error('Loop found. The chunk to process is the same as the previous iteration overlap.');
+				console.error('Chunk:', block);
+				console.error('Previous iteration overlap:', previous_iteration_overlap);
+				return;
+			}
 
 			// Find topics. Retry up to 3 times
 			let retries = 0;
 			let current_processed_topic = '';
 			while (current_processed_topic.length === 0) {
 				// Fetch topics for the current block of text
-				const current_topics = await topicsRequest(firstEnumeratedBlock, plugin);
+				const current_topics = await topicsRequest(enumeratedBlock, plugin);
 
 				// If topics are not found, break the loop
 				if (!current_topics) {
@@ -55,7 +70,7 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 				}
 
 				// Add the topics to the block of text
-				current_processed_topic = insertTopic(firstEnumeratedBlock, current_topics);
+				current_processed_topic = insertTopic(enumeratedBlock, current_topics);
 
 				// If topics are not found, probably due to wrong gpt response, retry
 				if (current_processed_topic.length === 0) {
@@ -75,7 +90,9 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 
 			// Log the topic processing if debug mode is enabled
 			if (plugin.settings.debug) {
-				await topicProcessingLog(firstBlock, current_processed_topic, iteration);
+				// @ts-ignore
+				const log_directory = resolve(plugin.app.vault.getRoot().vault.adapter.basePath, plugin.app.vault.configDir, 'logs')
+				await topicProcessingLog(log_directory, block, current_processed_topic, iteration);
 			}
 
 			// If there is no remaining text, exit the loop
@@ -85,7 +102,8 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 			}
 
 			// Update text to process for the next iteration
-			text_to_process = removeTopic(after_last_topic) + ' ' + remainingText;
+			previous_iteration_overlap = removeTopic(after_last_topic)
+			text_to_process = remainingText;
 			iteration++;
 		}
 
@@ -112,8 +130,13 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 	// Check if there is an active markdown view
 	if (view) {
-		const text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-		let [contents, contents_len] = divideTextByHeadings(text);
+		let text_to_process = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		// Find the end of the properties block
+		const start_line = findPropertiesEnd(text_to_process);
+		// Remove the properties block
+		text_to_process = text_to_process.split('\n').slice(start_line).join('\n');
+
+		let [contents, contents_len] = divideTextByHeadings(text_to_process);
 		let iteration = 0;
 		let summary = '';
 
@@ -169,13 +192,16 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 			// Log the summarization process if debug mode is enabled
 			if (plugin.settings.debug) {
-				await summarizationLog(texts_to_summarize, contents, iteration);
+				// @ts-ignore
+				const log_directory = resolve(plugin.app.vault.getRoot().vault.adapter.basePath, plugin.app.vault.configDir, 'logs')
+				await summarizationLog(log_directory, texts_to_summarize, contents, iteration);
 			}
 		}
 
 		// Insert the summary at the beginning of the document
-		const first_line = view.editor.getLine(0);
-		view.editor.replaceRange("~~~ Summary\n" + summary + "\n~~~\n" + first_line, { line: 0, ch: 0 }, { line: 0, ch: first_line.length });
+		const first_line = view.editor.getLine(start_line);
+
+		view.editor.replaceRange("~~~ Summary\n" + summary + "\n~~~\n" + first_line, { line: start_line, ch: 0 }, { line: start_line, ch: first_line.length });
 	} else {
 		new Notice('No active markdown view');
 	}

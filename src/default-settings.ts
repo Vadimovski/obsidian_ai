@@ -1,4 +1,4 @@
-export interface MyPluginSettings {
+export interface pluginSettings {
 	api_key: string;
 	summarize: boolean;
 	split: boolean;
@@ -7,7 +7,7 @@ export interface MyPluginSettings {
 	[key: string]: any;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
+export const DEFAULT_SETTINGS: pluginSettings = {
 	api_key: '',
 	summarize: false,
 	split: false,
