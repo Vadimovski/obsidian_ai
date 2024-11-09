@@ -70,6 +70,6 @@ npm run build
 
 To enable debugging, toggle the corresponding option in the plugin settings.
 
-After each run of the plugin, the plugin will append the log files in `/user-directory/.obsidian/logs/`
+After each run of the plugin, the plugin will append the log files in `vault_directory/.obsidian/logs`
 
 You can trace errors and logs in the console. Open it with `Ctrl+Shift+I` (`Cmd+Option+I` on macOS)
