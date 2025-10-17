@@ -1,6 +1,6 @@
 import { App, Modal, Setting } from "obsidian";
 import TextProcessingPlugin from "#/main";
-import { divide_by_topics, summarize } from "#/helpers/markdownHandlers";
+import { divide_by_topics, summarize, punctuate } from "#/helpers/markdownHandlers";
 
 // Class representing a modal for processing text with GPT
 export class ProcessModal extends Modal {
@@ -30,6 +30,18 @@ export class ProcessModal extends Modal {
 				.setValue(this.plugin.settings.split ?? false) // Set initial value from settings
 				.onChange(async (value) => {
 					this.plugin.settings.split = value; // Update setting value
+					await this.plugin.saveSettings(); // Save updated settings
+					this.updateButtonState(); // Update button state based on settings
+				}));
+
+		// Create checkbox for summarizing text
+		new Setting(contentEl)
+			.setName("Расстановка пунктуации")
+			.setDesc("Автоматически расставить знаки препинания по смыслу")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.punctuate ?? false) // Set initial value from settings
+				.onChange(async (value) => {
+					this.plugin.settings.punctuate = value; // Update setting value
 					await this.plugin.saveSettings(); // Save updated settings
 					this.updateButtonState(); // Update button state based on settings
 				}));
@@ -73,6 +85,9 @@ export class ProcessModal extends Modal {
 			if (this.plugin.settings.split) {
 				await divide_by_topics(this.plugin);
 			}
+			if (this.plugin.settings.punctuate) {
+				await punctuate(this.plugin);
+			}
 			if (this.plugin.settings.summarize) {
 				await summarize(this.plugin);
 			}
@@ -91,7 +106,7 @@ export class ProcessModal extends Modal {
 			this.processingButtonEl.setText('Processing... It may take some time');
 		} else {
 			// Enable button if any processing option is selected
-			this.processButton.setDisabled(!(this.plugin.settings.split || this.plugin.settings.summarize));
+			this.processButton.setDisabled(!(this.plugin.settings.split || this.plugin.settings.summarize || this.plugin.settings.punctuate));
 		}
 	}
 

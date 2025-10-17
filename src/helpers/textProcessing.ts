@@ -210,3 +210,274 @@ export function getFirstNWords(text: string, n: number): string {
 	// Slice the array of words to get the first N words and join them back into a string
 	return words.slice(0, n).join(' ');
 }
+
+// Removes all punctuation marks from text while preserving spaces and newlines
+export function removePunctuation(text: string): string {
+	return text
+		.replace(/[.!?…,;:—\-()[\]{}«»"'']+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+// Removes punctuation while preserving word boundaries
+export function removePunctuationPreservingWords(text: string): string {
+	// First, remove punctuation but keep spaces
+	let result = text.replace(/[.!?…,;:—\-()[\]{}«»"'']+/g, ' ');
+	
+	// Then normalize multiple spaces to single spaces
+	result = result.replace(/\s+/g, ' ');
+	
+	// Trim leading and trailing spaces
+	result = result.trim();
+	
+	return result;
+}
+
+// Gets the last word from a text
+export function getLastWord(text: string): string {
+	const words = text.trim().split(/\s+/);
+	return words.length > 0 ? words[words.length - 1] : '';
+}
+
+// Finds the last sentence-ending punctuation mark in text
+export function findLastSentenceEnd(text: string): { position: number; character: string } | null {
+	const sentenceEndPattern = /[.!?…]/g;
+	let lastMatch: { position: number; character: string } | null = null;
+	let match;
+	
+	while ((match = sentenceEndPattern.exec(text)) !== null) {
+		lastMatch = {
+			position: match.index,
+			character: match[0]
+		};
+	}
+	
+	return lastMatch;
+}
+
+// Finds the last sentence-ending punctuation mark in text with special handling for ellipsis
+export function findLastSentenceEndWithEllipsis(text: string): { position: number; character: string } | null {
+	// Check for ellipsis (...) or ellipsis character (…) first, then other sentence endings
+	const ellipsisMatch = text.match(/\.{3}|…/g);
+	if (ellipsisMatch) {
+		// Find the last occurrence
+		let lastIndex = -1;
+		let lastCharacter = '';
+		let match;
+		
+		// Search for all ellipsis patterns
+		const ellipsisPattern = /\.{3}|…/g;
+		while ((match = ellipsisPattern.exec(text)) !== null) {
+			lastIndex = match.index + (match[0] === '...' ? 2 : 0); // Position of the last dot or ellipsis character
+			lastCharacter = match[0];
+		}
+		
+		if (lastIndex !== -1) {
+			return {
+				position: lastIndex,
+				character: lastCharacter
+			};
+		}
+	}
+	
+	// Then check for other sentence endings
+	const sentenceEndPattern = /[.!?]/g;
+	let lastMatch: { position: number; character: string } | null = null;
+	let match;
+	
+	while ((match = sentenceEndPattern.exec(text)) !== null) {
+		lastMatch = {
+			position: match.index,
+			character: match[0]
+		};
+	}
+	
+	return lastMatch;
+}
+
+// Finds the previous sentence-ending punctuation mark before a given position
+export function findPreviousSentenceEnd(text: string, beforePosition: number): { position: number; character: string } | null {
+	// Use a pattern that matches both ellipsis types and regular sentence endings
+	const sentenceEndPattern = /\.{3}|…|[.!?]/g;
+	let lastMatch: { position: number; character: string } | null = null;
+	let match;
+	
+	while ((match = sentenceEndPattern.exec(text)) !== null) {
+		if (match.index >= beforePosition) break;
+		
+		// Adjust position for ellipsis (...)
+		let position = match.index;
+		if (match[0] === '...') {
+			position = match.index + 2; // Position of the last dot
+		}
+		
+		lastMatch = {
+			position: position,
+			character: match[0]
+		};
+	}
+	
+	return lastMatch;
+}
+
+// Gets context around a position in text (characters before and after)
+export function getContextAround(text: string, position: number, contextLength: number = 15): string {
+	const start = Math.max(0, position - contextLength);
+	const end = Math.min(text.length, position + contextLength);
+	return text.slice(start, end);
+}
+
+// Gets first N characters from text
+export function getFirstNCharacters(text: string, n: number): string {
+	return text.slice(0, n);
+}
+
+// Finds the nearest word boundary (start of a word) after a given position
+export function findNextWordBoundary(text: string, position: number): number {
+	// If position is already at the beginning of the text or at a space, return it
+	if (position <= 0 || /\s/.test(text[position - 1])) {
+		return position;
+	}
+	
+	// Look for the next space or word boundary
+	for (let i = position; i < text.length; i++) {
+		if (/\s/.test(text[i])) {
+			// Found a space, return the position after it
+			return i + 1;
+		}
+	}
+	
+	// If no space found, return the end of text
+	return text.length;
+}
+
+// Finds the nearest word boundary (start of a word) before a given position
+export function findPreviousWordBoundary(text: string, position: number): number {
+	// If position is at the beginning, return 0
+	if (position <= 0) {
+		return 0;
+	}
+	
+	// Look backwards for a space or word boundary
+	for (let i = position - 1; i >= 0; i--) {
+		if (/\s/.test(text[i])) {
+			// Found a space, return the position after it
+			return i + 1;
+		}
+	}
+	
+	// If no space found, return the beginning of text
+	return 0;
+}
+
+// Maps a position in processed text back to original text position
+export function findPositionInOriginalText(originalText: string, processedPosition: number, processedText: string): number {
+	// Simple approach: find the position where the processed text matches
+	// This is a simplified mapping - in practice, you might need more sophisticated logic
+	
+	// If the processed position is beyond the processed text, return the end of original
+	if (processedPosition >= processedText.length) {
+		return originalText.length;
+	}
+	
+	// Find the substring in processed text up to the position
+	const processedSubstring = processedText.substring(0, processedPosition);
+	
+	// Try to find a corresponding position in original text
+	// This is a heuristic approach - look for word boundaries
+	let originalPos = 0;
+	let processedPos = 0;
+	
+	while (originalPos < originalText.length && processedPos < processedPosition) {
+		// Skip punctuation in original text
+		if (/[.!?…,;:—\-()[\]{}«»"''\s]/.test(originalText[originalPos])) {
+			originalPos++;
+			continue;
+		}
+		
+		// Skip spaces in processed text
+		if (/\s/.test(processedText[processedPos])) {
+			processedPos++;
+			continue;
+		}
+		
+		// If characters match, advance both positions
+		if (originalText[originalPos].toLowerCase() === processedText[processedPos].toLowerCase()) {
+			originalPos++;
+			processedPos++;
+		} else {
+			// Characters don't match, advance original position
+			originalPos++;
+		}
+	}
+	
+	return Math.min(originalPos, originalText.length);
+}
+
+// Maps a position in result text back to original text position
+export function findOriginalPositionFromResult(result: string, resultPosition: number, original: string): number {
+	// This function maps a position in the accumulated result back to the original text
+	// The result contains processed text with punctuation added
+	
+	// If result position is beyond result length, return end of original
+	if (resultPosition >= result.length) {
+		return original.length;
+	}
+	
+	// For now, use a simplified approach
+	// In a more sophisticated implementation, we would track the mapping between result and original
+	
+	// Since we're building the result incrementally, we can approximate the position
+	// by finding where in the original text this position would correspond to
+	
+	let originalPos = 0;
+	let resultPos = 0;
+	
+	while (originalPos < original.length && resultPos < resultPosition) {
+		// Skip punctuation in original text that might not be in result yet
+		if (/[.!?…,;:—\-()[\]{}«»"''\s]/.test(original[originalPos])) {
+			originalPos++;
+			continue;
+		}
+		
+		// If characters match (case insensitive), advance both positions
+		if (original[originalPos].toLowerCase() === result[resultPos].toLowerCase()) {
+			originalPos++;
+			resultPos++;
+		} else {
+			// Characters don't match, advance original position
+			originalPos++;
+		}
+	}
+	
+	return Math.min(originalPos, original.length);
+}
+
+// Finds the length of a cleaned chunk in the original text (with punctuation)
+export function findOriginalChunkLength(originalText: string, cleanedChunk: string): number {
+	let originalPos = 0;
+	let cleanedPos = 0;
+	
+	while (cleanedPos < cleanedChunk.length && originalPos < originalText.length) {
+		// Skip punctuation and extra spaces in original
+		if (/[.!?…,;:—\-()[\]{}«»"'']/.test(originalText[originalPos])) {
+			originalPos++;
+			continue;
+		}
+		
+		if (/\s+/.test(originalText[originalPos]) && !/\s/.test(cleanedChunk[cleanedPos])) {
+			originalPos++;
+			continue;
+		}
+		
+		// Match characters
+		if (originalText[originalPos].toLowerCase() === cleanedChunk[cleanedPos].toLowerCase()) {
+			originalPos++;
+			cleanedPos++;
+		} else {
+			originalPos++;
+		}
+	}
+	
+	return originalPos;
+}

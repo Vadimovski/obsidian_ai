@@ -1,6 +1,18 @@
 import TextProcessingPlugin from "#/main";
 import { getChatGPTResponse } from "#/providers/openai";
+import { getOllamaResponse } from "#/providers/ollama";
 import { Notice } from "obsidian";
+
+// Unified router by provider (OpenAI/Ollama)
+export async function llmResponse(system_prompt: string, user_prompt: string, plugin: TextProcessingPlugin, opts?: { temperature?: number; top_p?: number; }): Promise<string> {
+    const provider = plugin.settings.provider;
+    if (provider === 'ollama') {
+        // No API key required; uses plugin.settings.ollama_base_url and model
+        return await getOllamaResponse(system_prompt, user_prompt, plugin, opts);
+    }
+    // Default: OpenAI
+    return await getChatGPTResponse(system_prompt, user_prompt, plugin, opts);
+}
 
 // Prompt for dividing text into general topics
 const topics_prompt =
@@ -39,10 +51,8 @@ The summary should include only a plain text. Remove all the headings\n`;
 // Function to request topic extraction from OpenAI
 export async function topicsRequest(text: string, plugin: TextProcessingPlugin): Promise<string | null> {
 	try {
-		// Send the combined prompt and text to get a response from OpenAI
-		const response = await getChatGPTResponse(topics_prompt, text, plugin);
-
-		return response.choices[0].message.content;
+        const response = await llmResponse(topics_prompt, text, plugin);
+        return typeof response === 'string' ? response : (response ?? null);
 	} catch (error) {
 		console.error("Error in topicsRequest:", error);
 		new Notice('Error generating topics');
@@ -53,21 +63,12 @@ export async function topicsRequest(text: string, plugin: TextProcessingPlugin):
 // Function to request a summary from OpenAI
 export async function summarizeRequest(text: string, plugin: TextProcessingPlugin): Promise<string | null> {
 	try {
-		// Get response from OpenAI by sending the prompt and the text
-		const response = await getChatGPTResponse(summarize_prompt,  text, plugin);
-
-		// Check if the response and choices are valid
-		if (response && response.choices && response.choices.length > 0) {
-			// Return the summarized text from the response
-			return response.choices[0].message.content;
-		} else {
-			console.error("Invalid response structure:", response);
-			new Notice('Invalid response structure from OpenAI API');
-			return null;
-		}
+        const response = await llmResponse(summarize_prompt,  text, plugin, { temperature: 0.2, top_p: 0.7 });
+        return typeof response === 'string' ? response : (response ?? null);
 	} catch (error) {
 		console.error("Error in summarizeRequest:", error);
 		new Notice('Error generating summary');
 		return null;
 	}
 }
+

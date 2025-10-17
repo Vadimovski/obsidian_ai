@@ -7,7 +7,19 @@ import {
 	divideTextByHeadings,
 	getFirstNWords,
 	countWords,
-	insertTopic, removeTopic, findPropertiesEnd
+	insertTopic, removeTopic, findPropertiesEnd,
+	removePunctuation,
+	removePunctuationPreservingWords,
+	getLastWord,
+	findLastSentenceEnd,
+	findLastSentenceEndWithEllipsis,
+	findPreviousSentenceEnd,
+	getContextAround,
+	getFirstNCharacters,
+	findNextWordBoundary,
+	findPreviousWordBoundary,
+	findPositionInOriginalText,
+	findOriginalChunkLength
 } from "#/helpers/textProcessing";
 import { topicProcessingLog, summarizationLog } from "#/helpers/logger";
 import {resolve} from "path";
@@ -15,10 +27,10 @@ import {resolve} from "path";
 
 // Function to divide text by topics
 export async function divide_by_topics(plugin: TextProcessingPlugin) {
-	const chunk_limit = 1000;
+	
 
-	// Check if api key is set
-	if (!plugin.settings.api_key) {
+	// For OpenAI provider, ensure API key set
+	if (plugin.settings.provider === 'openai' && !plugin.settings.api_key) {
 		new Notice('OpenAI API key not found. Please enter your OpenAI API key in the settings page.');
 		return;
 	}
@@ -28,35 +40,27 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 
 	// Check if there is an active markdown view
 	if (view) {
-		let text_to_process = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-		// Find the end of the properties block
-		const start_line = findPropertiesEnd(text_to_process);
-		// Remove the properties block
-		text_to_process = text_to_process.split('\n').slice(start_line).join('\n');
+		// Get the full text from the editor
+		const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		const start_line = findPropertiesEnd(full_text);
+		const prefix = full_text.split('\n').slice(0, start_line).join('\n');
+		let text_to_process = full_text.split('\n').slice(start_line).join('\n');
 
+		// Process the text in blocks
 		let processed_topics_text = '';
-		let iteration = 1;
 		let previous_iteration_overlap = '';
+		let iteration = 0;
 
-		// Loop through text chunks until all topics are processed
 		// eslint-disable-next-line no-constant-condition
 		while (true) {
 			text_to_process = previous_iteration_overlap + ' ' +text_to_process;
-			const [block, enumeratedBlock, remainingText] = get_block(text_to_process, chunk_limit);
+			const [block, enumeratedBlock, remainingText] = get_block(text_to_process, 200);
 
+			// If no more text to process, break
 			if (!block) {
-				console.error('Error generating topics. No text to process.');
+				break;
 			}
 
-			if (block.trim() == previous_iteration_overlap.trim()) {
-				new Notice('Failed to create topics. Please divide the text into sentences and try again.');
-				console.error('Loop found. The chunk to process is the same as the previous iteration overlap.');
-				console.error('Chunk:', block);
-				console.error('Previous iteration overlap:', previous_iteration_overlap);
-				return;
-			}
-
-			// Find topics. Retry up to 3 times
 			let retries = 0;
 			let current_processed_topic = '';
 			while (current_processed_topic.length === 0) {
@@ -91,7 +95,8 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 			// Log the topic processing if debug mode is enabled
 			if (plugin.settings.debug) {
 				// @ts-ignore
-				const log_directory = resolve(plugin.app.vault.getRoot().vault.adapter.basePath, plugin.app.vault.configDir, 'logs')
+				const vaultRoot = plugin.app.vault.getRoot().vault.adapter.basePath;
+				const log_directory = resolve(vaultRoot, plugin.settings.log_directory);
 				await topicProcessingLog(log_directory, block, current_processed_topic, iteration);
 			}
 
@@ -119,8 +124,8 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 export async function summarize(plugin: TextProcessingPlugin) {
 	const chunk_limit = 2000;
 
-	// Check if api key is set
-	if (!plugin.settings.api_key) {
+	// For OpenAI provider, ensure API key set
+	if (plugin.settings.provider === 'openai' && !plugin.settings.api_key) {
 		new Notice('OpenAI API key not found. Please enter your OpenAI API key in the settings page.');
 		return;
 	}
@@ -130,79 +135,283 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 	// Check if there is an active markdown view
 	if (view) {
-		let text_to_process = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-		// Find the end of the properties block
-		const start_line = findPropertiesEnd(text_to_process);
-		// Remove the properties block
-		text_to_process = text_to_process.split('\n').slice(start_line).join('\n');
+		// Get the full text from the editor
+		const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+		const start_line = findPropertiesEnd(full_text);
+		const prefix = full_text.split('\n').slice(0, start_line).join('\n');
+		let text_to_process = full_text.split('\n').slice(start_line).join('\n');
 
-		let [contents, contents_len] = divideTextByHeadings(text_to_process);
+		// Process the text in blocks
+		let processed_summary_text = '';
+		let previous_iteration_overlap = '';
 		let iteration = 0;
-		let summary = '';
 
-		// Continue summarizing until a summary is generated
-		while (!summary) {
-			const texts_to_summarize = [''];
-			const texts_len = [0];
-			let id_texts_to_push = 0;
+		// eslint-disable-next-line no-constant-condition
+		while (true) {
+			text_to_process = previous_iteration_overlap + ' ' +text_to_process;
+			const [block, enumeratedBlock, remainingText] = get_block(text_to_process, 200);
 
-			// Chunk the text content based on the chunk limit
-			for (let i = 0; i < contents.length; i++) {
-				// Trim contents if it exceeds the chunk limit
-				if (contents_len[i] > chunk_limit) {
-					contents[i] = getFirstNWords(contents[i], chunk_limit);
-					contents_len[i] = chunk_limit;
-				}
-
-				// Start a new chunk if adding more content exceeds the chunk limit
-				if (texts_len[id_texts_to_push] + contents_len[i] > chunk_limit) {
-					id_texts_to_push++;
-					texts_to_summarize[id_texts_to_push] = '';
-					texts_len[id_texts_to_push] = 0;
-				}
-
-				// Add content to the current chunk
-				texts_to_summarize[id_texts_to_push] += contents[i] + '\n';
-				texts_len[id_texts_to_push] += contents_len[i];
+			// If no more text to process, break
+			if (!block) {
+				break;
 			}
 
-			// Reset content arrays for the next iteration
-			[contents, contents_len] = [[], []];
+			let retries = 0;
+			let current_processed_summary = '';
+			while (current_processed_summary.length === 0) {
+				// Fetch summary for the current block of text
+				const current_summary = await summarizeRequest(enumeratedBlock, plugin);
 
-			// Summarize each chunk
-			for (let i = 0; i < texts_to_summarize.length; i++) {
-				const summarized_text = await summarizeRequest(texts_to_summarize[i], plugin);
-
-				// Handle summarization failure
-				if (!summarized_text) {
-					new Notice('Failed to summarize');
+				// If summary is not found, break the loop
+				if (!current_summary) {
+					new Notice('Failed to process summary');
 					return;
 				}
 
-				// Add summarized text to contents and update the word count
-				contents.push(summarized_text);
-				contents_len.push(countWords(summarized_text));
+				// Add the summary to the block of text
+				current_processed_summary = current_summary;
 
-				// If there's only one chunk, finalize the summary
-				if (texts_to_summarize.length === 1) {
-					summary = summarized_text;
+				// If summary is not found, probably due to wrong gpt response, retry
+				if (current_processed_summary.length === 0) {
+					retries++;
+				}
+
+				// If retries are exceeded, break the loop
+				if (retries > 3) {
+					new Notice('Failed to process summary');
+					return;
 				}
 			}
-			iteration++;
 
-			// Log the summarization process if debug mode is enabled
+			// Add the summary to the processed text
+			processed_summary_text += current_processed_summary;
+
+			// Log the summarization if debug mode is enabled
 			if (plugin.settings.debug) {
 				// @ts-ignore
-				const log_directory = resolve(plugin.app.vault.getRoot().vault.adapter.basePath, plugin.app.vault.configDir, 'logs')
-				await summarizationLog(log_directory, texts_to_summarize, contents, iteration);
+				const vaultRoot = plugin.app.vault.getRoot().vault.adapter.basePath;
+				const log_directory = resolve(vaultRoot, plugin.settings.log_directory);
+				await summarizationLog(log_directory, [block], [current_processed_summary], iteration);
 			}
+
+			// If there is no remaining text, exit the loop
+			if (!remainingText) {
+				break;
+			}
+
+			// Update text to process for the next iteration
+			previous_iteration_overlap = '';
+			text_to_process = remainingText;
+			iteration++;
 		}
 
-		// Insert the summary at the beginning of the document
-		const first_line = view.editor.getLine(start_line);
-
-		view.editor.replaceRange("~~~ Summary\n" + summary + "\n~~~\n" + first_line, { line: start_line, ch: 0 }, { line: start_line, ch: first_line.length });
+		// Replace the original text in the editor with the processed summary text
+		view.editor.replaceRange(processed_summary_text, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
 	} else {
 		new Notice('No active markdown view');
 	}
+}
+
+// Function to punctuate text using the new algorithm with 1000-char chunks and sentence overlap
+export async function punctuate(plugin: TextProcessingPlugin) {
+    const CHUNK_SIZE = 1000;
+    console.log('[punctuate] start with new algorithm');
+    console.log('[punctuate] provider:', plugin.settings.provider);
+    console.log('[punctuate] CHUNK_SIZE:', CHUNK_SIZE);
+
+    if (plugin.settings.provider === 'openai' && !plugin.settings.api_key) {
+        new Notice('OpenAI API key not found. Please enter your OpenAI API key in the settings page.');
+        return;
+    }
+
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    console.log('[punctuate] hasActiveView:', !!view);
+    if (!view) {
+        new Notice('No active markdown view');
+        return;
+    }
+
+    const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    console.log('[punctuate] fullText.length:', full_text.length);
+    const start_line = findPropertiesEnd(full_text);
+    console.log('[punctuate] propertiesEndLine:', start_line);
+    const prefix = full_text.split('\n').slice(0, start_line).join('\n');
+    let original = full_text.split('\n').slice(start_line).join('\n');
+    console.log('[punctuate] body.length:', original.length);
+
+    // Helper function to find the equivalent position in original text
+    function findOriginalPosition(originalText: string, startPos: number, processedText: string): number {
+        // Simple approach: find the processed text in the original text starting from startPos
+        const originalFromStart = originalText.slice(startPos);
+        const originalNoPunct = removePunctuation(originalFromStart);
+        
+        // Find where the processed text matches in the original text without punctuation
+        const matchIndex = originalNoPunct.indexOf(processedText);
+        if (matchIndex !== -1) {
+            return startPos + matchIndex;
+        }
+        
+        // Fallback: return startPos + length of processed text
+        return startPos + processedText.length;
+    }
+
+    // Process text in chunks according to the algorithm
+    let pos = 0;
+    let iteration = 0;
+    let N = 0; // Total processed characters counter in result text
+
+    while (pos < original.length) {
+        iteration++;
+        console.log(`[punctuate] Итерация ${iteration}: pos=${pos}, remaining=${original.length - pos}`);
+
+        // Step 1: Remove punctuation from the text starting from position N (code-based)
+        const textFromPos = original.slice(pos);
+        const textNoPunct = removePunctuationPreservingWords(textFromPos);
+        const textBeforePos = original.slice(0, pos);
+        original = textBeforePos + textNoPunct;
+        console.log(`[punctuate] Итерация ${iteration}: removed punctuation from pos ${pos}, length: ${original.length}`);
+        
+        // Update the editor with the text without punctuation
+        view.editor.replaceRange(prefix + original, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+
+        // Step 2: Take 1000 characters from the cleaned text
+        const chunk = getFirstNCharacters(textNoPunct, CHUNK_SIZE);
+        console.log(`[punctuate] Итерация ${iteration}: chunk length: ${chunk.length}`);
+
+        if (chunk.length === 0) {
+            break; // No more text to process
+        }
+
+        // Step 3: Find last space to avoid cutting words in half
+        let finalChunk = chunk;
+        let chunkLengthInOriginal = chunk.length;
+
+        if (chunk.length === CHUNK_SIZE) {
+            const lastSpaceIndex = chunk.lastIndexOf(' ');
+            if (lastSpaceIndex > 0) {
+                finalChunk = chunk.slice(0, lastSpaceIndex);
+                // Calculate the actual length in original text (with punctuation)
+                chunkLengthInOriginal = findOriginalChunkLength(textFromPos, finalChunk);
+            }
+        }
+
+        // Log first 50 characters of the segment
+        const segmentStart = getFirstNCharacters(chunk, 50);
+        console.log(`[punctuate] Итерация ${iteration}: "${segmentStart}"`);
+
+        // Step 3: Get the last word from the chunk
+        const lastWord = getLastWord(finalChunk);
+        console.log(`[punctuate] Итерация ${iteration}: last word: "${lastWord}"`);
+
+        // Step 4: Send request to LLM for punctuation
+        const systemPrompt = `Add punctuation marks to it
+Guidelines:
+Insert proper punctuation marks (commas, periods, question marks, exclamation points, colons, semicolons, quotation marks, etc.) according to the grammar rules of the language of the text.
+Do not change or correct the wording, spelling, or structure of the sentences — only add punctuation.
+Preserve line breaks and spacing as in the original text.
+Do not provide any explanations or comments in the output.`;
+
+        // Create a local function to handle punctuation using the English prompt
+        const localPunctuationRequest = async (text: string): Promise<string | null> => {
+            try {
+                const system_prompt = `Add punctuation marks to it
+Guidelines:
+Insert proper punctuation marks (commas, periods, question marks, exclamation points, colons, semicolons, quotation marks, etc.) according to the grammar rules of the language of the text.
+Do not change or correct the wording, spelling, or structure of the sentences — only add punctuation.
+Preserve line breaks and spacing as in the original text.
+Do not provide any explanations or comments in the output.`;
+                
+                // Import the llmResponse function locally
+                const { llmResponse } = await import("#/helpers/requestHandlers");
+                const response = await llmResponse(system_prompt, text, plugin, { temperature: 0.1, top_p: 0.7 });
+                return typeof response === 'string' ? response : null;
+            } catch (error) {
+                console.error("Error in local punctuation request:", error);
+                return null;
+            }
+        };
+
+        let chunkWithPunctuation: string | null = await localPunctuationRequest(finalChunk);
+        if (!chunkWithPunctuation || typeof chunkWithPunctuation !== 'string') {
+            chunkWithPunctuation = finalChunk; // Fallback to original
+        }
+
+        console.log(`[punctuate] Итерация ${iteration}: got punctuation, length: ${chunkWithPunctuation.length}`);
+
+        // Step 5: Count characters in the result
+        const n = chunkWithPunctuation.length;
+        console.log(`[punctuate] Итерация ${iteration} Шаг 5: k = ${n}`);
+
+        // Step 5: Find the last sentence-ending punctuation mark (with ellipsis support)
+        const lastSentenceEnd = findLastSentenceEndWithEllipsis(chunkWithPunctuation);
+        if (lastSentenceEnd) {
+            const context = getContextAround(chunkWithPunctuation, lastSentenceEnd.position, 15);
+            console.log(`[punctuate] Итерация ${iteration} Шаг 5: "${context}"`);
+        } else {
+            console.log(`[punctuate] Итерация ${iteration} Шаг 5: no sentence ending found`);
+        }
+
+        // Step 6: Find the previous sentence-ending punctuation mark
+        let previousSentenceEnd: { position: number; character: string } | null = null;
+        if (lastSentenceEnd) {
+            previousSentenceEnd = findPreviousSentenceEnd(chunkWithPunctuation, lastSentenceEnd.position);
+            if (previousSentenceEnd) {
+                const context = getContextAround(chunkWithPunctuation, previousSentenceEnd.position, 15);
+                const nPrev = previousSentenceEnd.position + 1; // Add 1 to the found position
+                console.log(`[punctuate] Итерация ${iteration} Шаг 6: "${context}" n=${nPrev}`);
+                
+                // Step 7: Add to N counter (N = N + n)
+                const oldN = N;
+                N = N + nPrev;
+                console.log(`[punctuate] Итерация ${iteration} Шаг 7: N = ${oldN} + ${nPrev} = ${N}`);
+            }
+        }
+
+        // Step 9: Insert processed text at position [pos, pos + send length] in the updated text
+        const insertStartPos = pos;
+        const insertEndPos = pos + finalChunk.length; // Length of text sent to LLM
+        
+        const textBeforeInsert = original.slice(0, insertStartPos);
+        const textAfterInsert = original.slice(insertEndPos);
+        
+        // Ensure proper spacing: add space after processed text if next character is not a space or punctuation
+        let processedTextWithSpace = chunkWithPunctuation;
+        if (textAfterInsert.length > 0) {
+            const nextChar = textAfterInsert[0];
+            // If next character is a letter or digit, add space
+            if (/[a-zA-Zа-яА-Я0-9]/.test(nextChar)) {
+                processedTextWithSpace += ' ';
+            }
+        }
+        
+        original = textBeforeInsert + processedTextWithSpace + textAfterInsert;
+        
+        console.log(`[punctuate] Итерация ${iteration} Шаг 9: inserted processed text at [${insertStartPos}, ${insertEndPos}], new length: ${original.length}`);
+
+        // Update the editor with the processed text
+        view.editor.replaceRange(prefix + original, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+
+        // Find the next starting position based on N position in the updated text
+        if (previousSentenceEnd && previousSentenceEnd.position > 0) {
+            // N represents the position in the updated text where we should start next
+            pos = N;
+            console.log(`[punctuate] Итерация ${iteration}: next pos = N = ${N}`);
+        } else {
+            // Fallback: move by chunk size
+            pos += CHUNK_SIZE;
+            console.log(`[punctuate] Итерация ${iteration}: fallback next pos = ${pos}`);
+        }
+
+        // Safety check to prevent infinite loops
+        if (pos >= original.length || iteration > 100) {
+            console.log(`[punctuate] Итерация ${iteration}: stopping, pos=${pos}, iteration=${iteration}`);
+            break;
+        }
+    }
+
+    console.log('[punctuate] final text length:', original.length);
+
+    // Write the final result back to the editor
+    view.editor.replaceRange(prefix + original, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    console.log('[punctuate] done');
 }
