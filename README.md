@@ -1,6 +1,6 @@
 # File Handler AI — AI text processing for Obsidian
 
-The plugin leverages AI (OpenAI or Ollama) to automate text cleanup, topic-based splitting, and summarization. It also supports batch processing, custom prompts, dictionaries, and a text comparison tool.
+The plugin leverages AI to automate text cleanup, topic-based splitting, and summarization. It also supports batch processing, custom prompts, dictionaries, and a text comparison tool.
 
 ![preview](preview.jpg)
 
@@ -14,43 +14,18 @@ The plugin leverages AI (OpenAI or Ollama) to automate text cleanup, topic-based
 - **Text comparison**: Compare original and processed files side-by-side
 - **Custom prompts**: Override default prompts per feature
 - **Multi-language UI**: en, zh-CN, es, pt, fr, de, ru, ja
-- **Providers**: OpenAI GPT and local Ollama
-
-## Installation
-
-### From Community Plugins (recommended)
-Search for `File Handler AI` in the Obsidian Community Plugins browser and install it.
-
-### Manual installation
-1. Go to your vault folder:
-```
-cd path/to/vault
-mkdir -p .obsidian/plugins
-cd .obsidian/plugins
-```
-2. Clone the repository:
-```
-git clone https://github.com/Vadimovski/obsidian_ai.git file-handler-ai
-```
-3. Install and build:
-```
-cd file-handler-ai
-npm install
-npm run build
-```
-4. In Obsidian: Settings → Community plugins → Turn on → enable `File Handler AI`.
+- **Providers**: OpenAI GPT
 
 ## Usage
 
 - Right-click a file in the file explorer or open the editor menu to launch processing
 - Choose a feature: punctuate, cosmetic, split by topics, summarize
 - Optionally run batch processing from the modal to process multiple files/folders
+- You can also select a fragment of text in the editor — features will apply only to the selected range
 
 ## Settings
 
-- **Provider**: OpenAI or Ollama
-  - OpenAI: requires API key
-  - Ollama: uses local base URL and model
+- **Provider**: OpenAI: requires API key
 - **Model**: e.g. `gpt-4o-mini` (default)
 - **Chunk sizes**: tune per feature for large documents
 - **Custom prompts**: per-feature overrides
@@ -60,25 +35,16 @@ npm run build
 
 ## How it works
 
-- Topic separation and summarization use chunking with careful boundaries to preserve context
-- Summarization iteratively condenses intermediate results until a final summary remains
-
-## Releasing
-
-When publishing a new version:
-- Update `manifest.json` and `versions.json` with matching versions
-- Create a GitHub release and attach `main.js`, `manifest.json` (and `styles.css` if present)
-- Submit your plugin to `obsidian-releases` if this is the first public release
+- **Punctuation**: Adds punctuation marks and sentence boundaries to raw or loosely formatted text. Headings can be preserved. Output stays close to original wording but becomes readable.
+- **Cosmetic cleanup**: Performs light formatting and small fixes (spaces, minor grammar, consistent style). Optional dictionary replaces terms using your key → value pairs. Output aims to keep the author’s tone.
+- **Topic separation**: Splits the document into coherent sections by topic while keeping paragraph integrity. It inserts headings or markers so the structure is easy to navigate and edit later.
+- **Summarization**: Produces a concise summary of the document’s main points. Large files are handled in chunks; intermediate results are condensed until a single clean summary remains.
 
 ## Troubleshooting
 
 - Open the Developer Console to see logs: `Ctrl+Shift+I` (Windows/Linux) or `Cmd+Option+I` (macOS)
 - Ensure an API key is set for OpenAI provider, or that Ollama is running locally
 
-## Links
+## Feedback
 
-- Repository: `https://github.com/Vadimovski/obsidian_ai`
-
-## License
-
-MIT
+- Found a bug or have a feature request? Please open an issue here: `https://github.com/Vadimovski/obsidian_ai/issues`
