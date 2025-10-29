@@ -2,6 +2,7 @@ import TextProcessingPlugin from "#/main";
 import { getChatGPTResponse } from "#/providers/openai";
 import { getOllamaResponse } from "#/providers/ollama";
 import { Notice } from "obsidian";
+import { DEFAULT_SUMMARIZE_PROMPT, DEFAULT_SPLIT_PROMPT, DEFAULT_COSMETIC_PROMPT } from "#/helpers/prompts";
 
 // Unified router by provider (OpenAI/Ollama)
 export async function llmResponse(system_prompt: string, user_prompt: string, plugin: TextProcessingPlugin, opts?: { temperature?: number; top_p?: number; }): Promise<string> {
@@ -14,44 +15,13 @@ export async function llmResponse(system_prompt: string, user_prompt: string, pl
     return await getChatGPTResponse(system_prompt, user_prompt, plugin, opts);
 }
 
-// Prompt for dividing text into general topics
-const topics_prompt =
-`Divide the text into topics.
-
-Topic Naming:
-- Use broad, descriptive titles that capture the essence of each thematic cluster.
-- Avoid specificity; instead, opt for names that could encompass several of the original topics listed in your current output.
-
-Note:
-- The topic name will be put before the sentence number. Do not create a topic for each sentence. The topic should summarize the paragraph.
-- You should generate at least one topic and no more than five.
-
-Keep in Mind:
-- What are the primary subject matter domains covered by the text?
-- How do the various detailed topics cluster together thematically?
-- What high-level narrative or conceptual threads weave through the text?
-- Topic name should be written on the language of the text.
-
-Output format:
-In each row, put the sentence number where the topic starts, colon and the topic name.
-Sentence number where the topic starts: Topic name
-
-Output example:
-1: Cars
-15: Planes
-23: Ships
-etc.
-`;
-
-// Prompt for creating a summary of the text
-const summarize_prompt =
-	`I have the text, and I would like you to create a short summary of the text. 
-The summary should include only a plain text. Remove all the headings\n`;
+// Default prompts provided by helpers/prompts; can be overridden by user settings
 
 // Function to request topic extraction from OpenAI
-export async function topicsRequest(text: string, plugin: TextProcessingPlugin): Promise<string | null> {
+export async function topicsRequest(text: string, plugin: TextProcessingPlugin, systemPrompt?: string): Promise<string | null> {
 	try {
-        const response = await llmResponse(topics_prompt, text, plugin);
+        const prompt = systemPrompt ?? (plugin.settings.customPrompts?.split ?? DEFAULT_SPLIT_PROMPT);
+        const response = await llmResponse(prompt, text, plugin);
         return typeof response === 'string' ? response : (response ?? null);
 	} catch (error) {
 		console.error("Error in topicsRequest:", error);
@@ -61,14 +31,35 @@ export async function topicsRequest(text: string, plugin: TextProcessingPlugin):
 }
 
 // Function to request a summary from OpenAI
-export async function summarizeRequest(text: string, plugin: TextProcessingPlugin): Promise<string | null> {
+export async function summarizeRequest(text: string, plugin: TextProcessingPlugin, systemPrompt?: string): Promise<string | null> {
 	try {
-        const response = await llmResponse(summarize_prompt,  text, plugin, { temperature: 0.2, top_p: 0.7 });
+        const prompt = systemPrompt ?? (plugin.settings.customPrompts?.summarize ?? DEFAULT_SUMMARIZE_PROMPT);
+        const response = await llmResponse(prompt,  text, plugin, { temperature: 0.2, top_p: 0.7 });
         return typeof response === 'string' ? response : (response ?? null);
 	} catch (error) {
 		console.error("Error in summarizeRequest:", error);
 		new Notice('Error generating summary');
 		return null;
 	}
+}
+
+// Function to request cosmetic cleanup (light copy-edit)
+export async function cosmeticRequest(text: string, plugin: TextProcessingPlugin, systemPrompt?: string): Promise<string | null> {
+    try {
+        const basePrompt = systemPrompt ?? (plugin.settings.customPrompts?.cosmetic ?? DEFAULT_COSMETIC_PROMPT);
+        // Append dictionary only if we are building the prompt here
+        let prompt = basePrompt;
+        if (systemPrompt === undefined) {
+            const dict = Array.isArray(plugin.settings.cosmeticDictionary) ? plugin.settings.cosmeticDictionary : [];
+            const dictSection = dict.length > 0 ? '\n' + dict.map(p => `${p.key} -> ${p.value}`).join('\n') : '';
+            prompt = basePrompt + dictSection;
+        }
+        const response = await llmResponse(prompt, text, plugin, { temperature: 0.0, top_p: 0.9 });
+        return typeof response === 'string' ? response : (response ?? null);
+    } catch (error) {
+        console.error("Error in cosmeticRequest:", error);
+        new Notice('Error during Cosmetic Cleanup');
+        return null;
+    }
 }
 

@@ -1,10 +1,10 @@
 {
 	"id": "file-handler-ai",
 	"name": "File Handler AI",
-	"version": "1.1.1",
-	"minAppVersion": "0.16.0",
-	"description": "Text summarization and topic generation using OpenAI GPT",
-	"author": "dmntya",
-	"authorUrl": "t.me/dmntya",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "AI-powered text processing tool. Automates editing and structuring of text of any length: punctuation, cosmetic correction, paragraph division, summarization.",
+	"author": "Vadimovski",
+	"authorUrl": "t.me/Vadim_ovski",
 	"isDesktopOnly": false
 }

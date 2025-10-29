@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import TextProcessingPlugin from "#/main";
+import { t } from "#/ui/i18n";
 
 // Class representing the settings tab for the plugin
 export default class TextProcessingSettingTab extends PluginSettingTab {
@@ -15,12 +16,11 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 	// Method to display the settings in the tab
 	display(): void {
 		this.clearContainer(); // Clear the existing container elements
+		this.createLanguageDropdown();
 		this.createProviderDropdown();
 		this.createApiKeySetting(); // Create the API key setting
-		this.createDebugToggle(); // Create the debug toggle
 		this.createModelDropdown(); // Create the model dropdown
 		this.createOllamaUrlSetting();
-		this.createLogDirectorySetting();
 	}
 
 	// Method to clear the container of previous settings
@@ -28,11 +28,42 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 		this.containerEl.empty(); // Remove all child elements from the container
 	}
 
+	// Language select
+	private createLanguageDropdown(): void {
+		const row = new Setting(this.containerEl)
+			.setName(t(this.plugin.settings.language, "language"))
+			.setDesc(t(this.plugin.settings.language, "choose_language"));
+
+		row.addDropdown(dropdown =>
+			dropdown
+				.addOptions({
+					"en": "English",
+					"zh-CN": "中文(简体)",
+					"es": "Español",
+					"pt": "Português",
+					"fr": "Français",
+					"de": "Deutsch",
+					"ru": "Русский",
+					"ja": "日本語",
+				})
+				.setValue(this.plugin.settings.language ?? 'en')
+				.onChange(async (value) => this.updateSettings("language", value))
+		);
+
+		row.addExtraButton(btn => {
+			btn.setTooltip(t(this.plugin.settings.language, "apply"))
+				.setIcon('checkmark')
+				.onClick(() => {
+					this.display();
+				});
+		});
+	}
+
 	// Provider select
 	private createProviderDropdown(): void {
 		new Setting(this.containerEl)
-			.setName("Provider")
-			.setDesc("Choose AI provider")
+			.setName(t(this.plugin.settings.language, "provider"))
+			.setDesc(t(this.plugin.settings.language, "provider_desc"))
 			.addDropdown(dropdown =>
 				dropdown
 					.addOptions({
@@ -51,33 +82,22 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 	private createApiKeySetting(): void {
 		if (this.plugin.settings.provider !== 'openai') return;
 		new Setting(this.containerEl)
-			.setName("OpenAI API Key")
-			.setDesc("Generate at https://platform.openai.com")
+			.setName(t(this.plugin.settings.language, "api_key"))
+			.setDesc(t(this.plugin.settings.language, "api_key_desc"))
 			.addText(text =>
 				text
-					.setPlaceholder("Enter your OpenAI API key")
+					.setPlaceholder(t(this.plugin.settings.language, "api_key_placeholder"))
 					.setValue(this.plugin.settings.api_key) // Set the initial value
 					.onChange(async (value) => this.updateSettings("api_key", value)) // Update the API key on change
 			);
 	}
 	
-	// Method to create debug toggle
-	private createDebugToggle(): void {
-		new Setting(this.containerEl)
-			.setName("Debug Mode")
-			.setDesc("Creates log files for debugging")
-			.addToggle(toggle =>
-				toggle
-					.setValue(this.plugin.settings.debug) // Set the initial value
-					.onChange(async (value) => this.updateSettings("debug", value)) // Update the debug mode on change
-			);
-	}
 
 	// Method to create a dropdown menu for selecting the model
 	private createModelDropdown(): void {
 		new Setting(this.containerEl)
-			.setName("Model")
-			.setDesc("Select a model")
+			.setName(t(this.plugin.settings.language, "model"))
+			.setDesc(t(this.plugin.settings.language, "model_desc"))
 			.addDropdown(dropdown =>
 				dropdown
 					.addOptions(this.plugin.settings.provider === 'openai' ? {
@@ -100,8 +120,8 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 	private createOllamaUrlSetting(): void {
 		if (this.plugin.settings.provider !== 'ollama') return;
 		new Setting(this.containerEl)
-			.setName("Ollama Base URL")
-			.setDesc("Default http://localhost:11434")
+			.setName(t(this.plugin.settings.language, "ollama_url"))
+			.setDesc(t(this.plugin.settings.language, "ollama_url_desc"))
 			.addText(text =>
 				text
 					.setPlaceholder("http://localhost:11434")
@@ -110,18 +130,9 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// Log directory setting
-	private createLogDirectorySetting(): void {
-		new Setting(this.containerEl)
-			.setName("Log Directory")
-			.setDesc("Directory for debug logs (relative to vault root)")
-			.addText(text =>
-				text
-					.setPlaceholder("file-handler_logs")
-					.setValue(this.plugin.settings.log_directory)
-					.onChange(async (value) => this.updateSettings("log_directory", value))
-			);
-	}
+
+
+
 
 	// Method to update the plugin settings
 	private async updateSettings(name: string, value: any): Promise<void> {

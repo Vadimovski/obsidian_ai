@@ -213,24 +213,56 @@ export function getFirstNWords(text: string, n: number): string {
 
 // Removes all punctuation marks from text while preserving spaces and newlines
 export function removePunctuation(text: string): string {
-	return text
-		.replace(/[.!?…,;:—\-()[\]{}«»"'']+/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
+	// Protect wikilinks and embeds by temporarily replacing them
+	const wikilinks: string[] = [];
+	let result = text.replace(/(!?\[\[[^\]]+\]\])/g, (match) => {
+		wikilinks.push(match);
+		return `⚡⚡WIKILINK${wikilinks.length - 1}⚡⚡`;
+	});
+	
+	// Remove punctuation
+	result = result
+		.replace(/[.!?…,;—«»"'']+/g, ' ')
+		.replace(/[ \t]+/g, ' ') // Normalize spaces and tabs, but preserve newlines
+		.replace(/ *\n */g, '\n'); // Remove spaces around newlines
+	
+	// Restore wikilinks
+	result = result.replace(/⚡⚡WIKILINK(\d+)⚡⚡/g, (match, index) => {
+		return wikilinks[parseInt(index)];
+	});
+	
+	return result.trim();
 }
 
 // Removes punctuation while preserving word boundaries
-export function removePunctuationPreservingWords(text: string): string {
-	// First, remove punctuation but keep spaces
-	let result = text.replace(/[.!?…,;:—\-()[\]{}«»"'']+/g, ' ');
+export function removePunctuationPreservingWords(text: string, preserveHeadings: boolean = true): string {
+	// Protect wikilinks and embeds by temporarily replacing them
+	const wikilinks: string[] = [];
+	let result = text.replace(/(!?\[\[[^\]]+\]\])/g, (match) => {
+		wikilinks.push(match);
+		return `⚡⚡WIKILINK${wikilinks.length - 1}⚡⚡`;
+	});
 	
-	// Then normalize multiple spaces to single spaces
-	result = result.replace(/\s+/g, ' ');
+	// Remove punctuation but keep spaces
+	result = result.replace(/[.!?…,;—«»"'']+/g, ' ');
+
+	// Optionally remove Markdown heading markers (#) at line starts
+	if (!preserveHeadings) {
+		// Remove leading heading markers and surrounding spaces at the start of lines
+		result = result.replace(/^[ \t]*#{1,6}[ \t]*/gm, '');
+	}
+	
+	// Then normalize multiple spaces to single spaces, but preserve newlines
+	result = result.replace(/[ \t]+/g, ' '); // Normalize spaces and tabs only
+	result = result.replace(/ *\n */g, '\n'); // Remove spaces around newlines
+	
+	// Restore wikilinks
+	result = result.replace(/⚡⚡WIKILINK(\d+)⚡⚡/g, (match, index) => {
+		return wikilinks[parseInt(index)];
+	});
 	
 	// Trim leading and trailing spaces
-	result = result.trim();
-	
-	return result;
+	return result.trim();
 }
 
 // Gets the last word from a text
@@ -305,14 +337,8 @@ export function findPreviousSentenceEnd(text: string, beforePosition: number): {
 	while ((match = sentenceEndPattern.exec(text)) !== null) {
 		if (match.index >= beforePosition) break;
 		
-		// Adjust position for ellipsis (...)
-		let position = match.index;
-		if (match[0] === '...') {
-			position = match.index + 2; // Position of the last dot
-		}
-		
 		lastMatch = {
-			position: position,
+			position: match.index,
 			character: match[0]
 		};
 	}
@@ -390,7 +416,7 @@ export function findPositionInOriginalText(originalText: string, processedPositi
 	
 	while (originalPos < originalText.length && processedPos < processedPosition) {
 		// Skip punctuation in original text
-		if (/[.!?…,;:—\-()[\]{}«»"''\s]/.test(originalText[originalPos])) {
+		if (/[.!?…,;—«»"''\s]/.test(originalText[originalPos])) {
 			originalPos++;
 			continue;
 		}
@@ -435,7 +461,7 @@ export function findOriginalPositionFromResult(result: string, resultPosition: n
 	
 	while (originalPos < original.length && resultPos < resultPosition) {
 		// Skip punctuation in original text that might not be in result yet
-		if (/[.!?…,;:—\-()[\]{}«»"''\s]/.test(original[originalPos])) {
+		if (/[.!?…,;—«»"''\s]/.test(original[originalPos])) {
 			originalPos++;
 			continue;
 		}
@@ -460,7 +486,7 @@ export function findOriginalChunkLength(originalText: string, cleanedChunk: stri
 	
 	while (cleanedPos < cleanedChunk.length && originalPos < originalText.length) {
 		// Skip punctuation and extra spaces in original
-		if (/[.!?…,;:—\-()[\]{}«»"'']/.test(originalText[originalPos])) {
+		if (/[.!?…,;—«»"'']/.test(originalText[originalPos])) {
 			originalPos++;
 			continue;
 		}
@@ -480,4 +506,372 @@ export function findOriginalChunkLength(originalText: string, cleanedChunk: stri
 	}
 	
 	return originalPos;
+}
+
+// ===== New helpers for paragraph/topic splitting =====
+
+// Takes approximately maxChars characters and prefers closing at a paragraph boundary (blank line).
+// If no paragraph boundary is found in the candidate, falls back to sentence alignment (ellipsis-aware),
+// and finally to the end of candidate.
+export function sliceByCharactersAlignToParagraphOrSentence(text: string, maxChars: number = 1000): { chunk: string; remaining: string } {
+    if (!text || maxChars <= 0) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Step 1: Take ~maxChars characters to define candidate window
+    const candidate = text.slice(0, maxChars);
+    if (!candidate) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Step 2: Prefer the last paragraph boundary (blank line) inside candidate
+    // Match sequences like "\n\n" or "\r\n\r\n" with optional spaces in between
+    const paragraphRe = /(?:\r?\n)[ \t]*(?:\r?\n)/g;
+    let lastParaBoundary = -1;
+    let m: RegExpExecArray | null;
+    while ((m = paragraphRe.exec(candidate)) !== null) {
+        lastParaBoundary = m.index + m[0].length; // position after the blank line
+    }
+
+    if (lastParaBoundary !== -1) {
+        const chunk = candidate.slice(0, lastParaBoundary);
+        const remaining = text.slice(lastParaBoundary);
+        return { chunk, remaining };
+    }
+
+    // Step 3: Fall back to last sentence ending (ellipsis-aware)
+    let splitAt = -1;
+    for (let i = candidate.length - 1; i >= 2; i--) {
+        if (candidate[i] === '.' && candidate[i - 1] === '.' && candidate[i - 2] === '.') {
+            splitAt = i;
+            break;
+        }
+    }
+    if (splitAt === -1) {
+        for (let i = candidate.length - 1; i >= 0; i--) {
+            if (/[.!?…]/.test(candidate[i])) {
+                splitAt = i;
+                break;
+            }
+        }
+    }
+
+    const boundary = splitAt !== -1 ? splitAt + 1 : candidate.length;
+    const chunk = candidate.slice(0, boundary);
+    const remaining = text.slice(boundary);
+    return { chunk, remaining };
+}
+
+// Takes approximately maxWords words from the start of text and then
+// moves left to the last sentence-ending character so the chunk ends at a sentence boundary
+export function sliceByWordsAndAlignToSentence(text: string, maxWords: number = 1000): { chunk: string; remaining: string } {
+    if (!text || maxWords <= 0) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Take ~maxWords words without reconstructing text to preserve whitespace/newlines
+    let wordCount = 0;
+    let endExclusive = 0;
+    let inWord = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const isWhitespace = /\s/.test(ch);
+        if (!isWhitespace && !inWord) {
+            wordCount++;
+            inWord = true;
+            if (wordCount > maxWords) {
+                endExclusive = i; // stop before this word
+                break;
+            }
+        } else if (isWhitespace) {
+            inWord = false;
+        }
+        endExclusive = i + 1; // keep advancing
+    }
+
+    const candidate = text.slice(0, endExclusive);
+    if (!candidate) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Find last sentence-ending punctuation within candidate (supports '...' and '…')
+    // Prefer ellipsis first
+    let splitAt = -1;
+    // Search '...' occurrences
+    for (let i = candidate.length - 1; i >= 2; i--) {
+        if (candidate[i] === '.' && candidate[i - 1] === '.' && candidate[i - 2] === '.') {
+            splitAt = i; // index of last dot in '...'
+            break;
+        }
+    }
+    // If not found, search for single sentence enders
+    if (splitAt === -1) {
+        for (let i = candidate.length - 1; i >= 0; i--) {
+            if (/[.!?…]/.test(candidate[i])) {
+                splitAt = i;
+                break;
+            }
+        }
+    }
+
+    const boundary = splitAt !== -1 ? splitAt + 1 : candidate.length;
+    const chunk = candidate.slice(0, boundary);
+    const remaining = text.slice(boundary);
+    return { chunk, remaining };
+}
+
+// Takes approximately maxWords words and prefers closing at a paragraph boundary (blank line).
+// If no paragraph boundary is found in the candidate, falls back to sentence alignment (ellipsis-aware),
+// and finally to the end of candidate.
+export function sliceByWordsAlignToParagraphOrSentence(text: string, maxWords: number = 1000): { chunk: string; remaining: string } {
+    if (!text || maxWords <= 0) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Step 1: Take ~maxWords words to define candidate window
+    let wordCount = 0;
+    let endExclusive = 0;
+    let inWord = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const isWhitespace = /\s/.test(ch);
+        if (!isWhitespace && !inWord) {
+            wordCount++;
+            inWord = true;
+            if (wordCount > maxWords) {
+                endExclusive = i; // stop before this word
+                break;
+            }
+        } else if (isWhitespace) {
+            inWord = false;
+        }
+        endExclusive = i + 1;
+    }
+
+    const candidate = text.slice(0, endExclusive);
+    if (!candidate) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Step 2: Prefer the last paragraph boundary (blank line) inside candidate
+    // Match sequences like "\n\n" or "\r\n\r\n" with optional spaces in between
+    const paragraphRe = /(?:\r?\n)[ \t]*(?:\r?\n)/g;
+    let lastParaBoundary = -1;
+    let m: RegExpExecArray | null;
+    while ((m = paragraphRe.exec(candidate)) !== null) {
+        lastParaBoundary = m.index + m[0].length; // position after the blank line
+    }
+
+    if (lastParaBoundary !== -1) {
+        const chunk = candidate.slice(0, lastParaBoundary);
+        const remaining = text.slice(lastParaBoundary);
+        return { chunk, remaining };
+    }
+
+    // Step 3: Fall back to last sentence ending (ellipsis-aware)
+    let splitAt = -1;
+    for (let i = candidate.length - 1; i >= 2; i--) {
+        if (candidate[i] === '.' && candidate[i - 1] === '.' && candidate[i - 2] === '.') {
+            splitAt = i;
+            break;
+        }
+    }
+    if (splitAt === -1) {
+        for (let i = candidate.length - 1; i >= 0; i--) {
+            if (/[.!?…]/.test(candidate[i])) {
+                splitAt = i;
+                break;
+            }
+        }
+    }
+
+    const boundary = splitAt !== -1 ? splitAt + 1 : candidate.length;
+    const chunk = candidate.slice(0, boundary);
+    const remaining = text.slice(boundary);
+    return { chunk, remaining };
+}
+
+// Inserts enumeration tokens "1", "2", ... before each sentence start without adding extra spaces
+// Returns the enumerated text and a map from sentence number to insertion index
+export function enumerateChunkAndGetIndices(chunk: string): { enumerated: string; positions: Map<number, number> } {
+    const positions = new Map<number, number>();
+    if (!chunk) return { enumerated: '', positions };
+
+    // Find sentence starts: first non-whitespace at start (index 0),
+    // and first non-whitespace after each sentence-ending punctuation (… or ... or [.!?])
+    const starts: number[] = [];
+
+    // Helper to find first non-whitespace index >= i
+    const firstNonWhitespace = (s: string, i: number) => {
+        let j = i;
+        while (j < s.length && /\s/.test(s[j])) j++;
+        return j;
+    };
+
+    // Start of first sentence
+    starts.push(firstNonWhitespace(chunk, 0));
+
+    // Scan for sentence ends and compute next starts
+    for (let i = 0; i < chunk.length; i++) {
+        // Ellipsis '...'
+        if (i + 2 < chunk.length && chunk[i] === '.' && chunk[i + 1] === '.' && chunk[i + 2] === '.') {
+            const nextStart = firstNonWhitespace(chunk, i + 3);
+            if (nextStart < chunk.length) starts.push(nextStart);
+            i += 2; // advance past ellipsis
+            continue;
+        }
+        if (/[.!?…]/.test(chunk[i])) {
+            const nextStart = firstNonWhitespace(chunk, i + 1);
+            if (nextStart < chunk.length) starts.push(nextStart);
+        }
+    }
+
+    // Deduplicate and sort starts
+    const uniqueStarts = Array.from(new Set(starts)).sort((a, b) => a - b);
+
+    // Build enumerated string
+    let result = '';
+    let cursor = 0;
+    let sentenceIndex = 1;
+    for (const s of uniqueStarts) {
+        if (s < cursor) continue;
+        // Append text before the sentence start
+        result += chunk.slice(cursor, s);
+        // Insert token
+        const token = `"${sentenceIndex}"`;
+        positions.set(sentenceIndex, result.length); // index where token starts
+        result += token;
+        // Append from sentence start up to before the next token insertion
+        cursor = s;
+        sentenceIndex++;
+    }
+    // Append the rest
+    result += chunk.slice(cursor);
+
+    return { enumerated: result, positions };
+}
+
+// Removes all enumeration tokens like "1", "23" from text
+export function stripEnumeration(text: string): string {
+    if (!text) return text;
+    return text.replace(/"\d+"/g, '');
+}
+
+export type ParsedTopic = { n: number; title: string };
+
+// Parses LLM topics in format: "<number>: <Title>" per line
+export function parseTopics(response: string): ParsedTopic[] {
+    if (!response) return [];
+    const topics: ParsedTopic[] = [];
+    for (const rawLine of response.split('\n')) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const m = line.match(/^(\d+)\s*:\s*(.+)$/);
+        if (m) {
+            const n = parseInt(m[1], 10);
+            const title = m[2].trim();
+            if (!isNaN(n) && title) topics.push({ n, title });
+        }
+    }
+    topics.sort((a, b) => a.n - b.n);
+    return topics;
+}
+
+// Inserts headings for all topics except the last one. Headings are in format: \n## {title}\n
+// Returns two parts:
+//  - beforeLastProcessed: text BEFORE the last topic with headings inserted (enumerations removed)
+//  - fromLastEnumerated: text FROM the last topic marker (still enumerated) for next-iteration processing
+export function insertHeadingsExceptLast(enumeratedChunk: string, topics: ParsedTopic[]): { beforeLastProcessed: string; fromLastEnumerated: string } {
+    if (!enumeratedChunk || topics.length === 0) {
+        return { beforeLastProcessed: stripEnumeration(enumeratedChunk), fromLastEnumerated: '' };
+    }
+
+    if (topics.length === 1) {
+        // Single-topic case should be handled by caller separately
+        return { beforeLastProcessed: stripEnumeration(enumeratedChunk), fromLastEnumerated: '' };
+    }
+
+    const last = topics[topics.length - 1];
+    const lastToken = `"${last.n}"`;
+    const lastIdx = enumeratedChunk.indexOf(lastToken);
+    if (lastIdx === -1) {
+        // Fallback: no marker found for last; process entire chunk
+        let processed = enumeratedChunk;
+        for (let i = 0; i < topics.length - 1; i++) {
+            const t = topics[i];
+            const token = `"${t.n}"`;
+            processed = processed.replace(token, `\n## ${t.title}\n`);
+        }
+        return { beforeLastProcessed: stripEnumeration(processed), fromLastEnumerated: '' };
+    }
+
+    const beforeLast = enumeratedChunk.slice(0, lastIdx);
+    const fromLast = enumeratedChunk.slice(lastIdx);
+
+    // Replace tokens in beforeLast for all topics except the last
+    let beforeProcessed = beforeLast;
+    for (let i = 0; i < topics.length - 1; i++) {
+        const t = topics[i];
+        const token = `"${t.n}"`;
+        beforeProcessed = beforeProcessed.replace(token, `\n## ${t.title}\n`);
+    }
+
+    return { beforeLastProcessed: stripEnumeration(beforeProcessed), fromLastEnumerated: fromLast };
+}
+
+// Splits text by characters and aligns to paragraph boundaries (## headings)
+// Takes approximately maxChars characters and moves left to the last paragraph boundary
+export function sliceByCharactersAlignToParagraph(text: string, maxChars: number = 5000): { chunk: string; remaining: string } {
+    if (!text || maxChars <= 0) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Take approximately maxChars characters
+    const candidate = text.slice(0, Math.min(maxChars, text.length));
+    if (!candidate) {
+        return { chunk: '', remaining: text };
+    }
+
+    // Find the last paragraph boundary (## heading) within the candidate
+    // Look for patterns like "## " or "\n## " 
+    const paragraphRe = /(?:^|\n)##\s+/g;
+    let lastParaBoundary = -1;
+    let m: RegExpExecArray | null;
+    
+    while ((m = paragraphRe.exec(candidate)) !== null) {
+        lastParaBoundary = m.index; // position of the paragraph marker
+    }
+
+    // If we found a paragraph boundary, use it
+    if (lastParaBoundary !== -1) {
+        const chunk = candidate.slice(0, lastParaBoundary);
+        const remaining = text.slice(lastParaBoundary);
+        return { chunk, remaining };
+    }
+
+    // If no paragraph boundary found, fall back to sentence alignment
+    let splitAt = -1;
+    
+    // Search for ellipsis first
+    for (let i = candidate.length - 1; i >= 2; i--) {
+        if (candidate[i] === '.' && candidate[i - 1] === '.' && candidate[i - 2] === '.') {
+            splitAt = i; // index of last dot in '...'
+            break;
+        }
+    }
+    
+    // If not found, search for single sentence enders
+    if (splitAt === -1) {
+        for (let i = candidate.length - 1; i >= 0; i--) {
+            if (/[.!?…]/.test(candidate[i])) {
+                splitAt = i;
+                break;
+            }
+        }
+    }
+
+    const boundary = splitAt !== -1 ? splitAt + 1 : candidate.length;
+    const chunk = candidate.slice(0, boundary);
+    const remaining = text.slice(boundary);
+    return { chunk, remaining };
 }

@@ -1,7 +1,7 @@
 {
 	"name": "file_handler_ai",
-	"version": "1.1.1",
-	"description": "Text summarization and topic generation using OpenAI GPT",
+	"version": "1.0.0",
+	"description": "AI-powered text processing tool. Automates editing and structuring of text of any length: punctuation, cosmetic correction, paragraph division, summarization.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -9,7 +9,7 @@
 		"version": "node scripts/version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
-	"author": "",
+	"author": "Vadimovski",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.18.126",
@@ -20,8 +20,5 @@
 		"obsidian": "latest",
 		"tslib": "2.4.0",
 		"typescript": "^4.7.4"
-	},
-	"dependencies": {
-		"openai": "^4.67.3"
 	}
 }

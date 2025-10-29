@@ -3,6 +3,7 @@ import TextProcessingSettingTab from "./ui/settings-page";
 import { DEFAULT_SETTINGS, pluginSettings } from "./default-settings";
 import { ProcessModal } from "./ui/process-modal";
 import {PLUGIN_ICON} from "#/ui/styles/constatnts";
+import { t } from "#/ui/i18n";
 
 export default class TextProcessingPlugin extends Plugin {
 	settings: pluginSettings;
@@ -20,7 +21,7 @@ export default class TextProcessingPlugin extends Plugin {
 
 				menu.addItem((item) => {
 					item
-						.setTitle("File Handler AI")
+						.setTitle(t(this.settings.language, 'menu_title'))
 						.setIcon('ai')
 						.onClick(async () => {
 							// If the selected item is a file, open it in the editor
@@ -37,7 +38,7 @@ export default class TextProcessingPlugin extends Plugin {
 			this.app.workspace.on("editor-menu", (menu) => {
 				menu.addItem((item) => {
 					item
-						.setTitle("File Handler AI")
+						.setTitle(t(this.settings.language, 'menu_title'))
 						.setIcon("ai")
 						.onClick(async () => {
 							// Open a modal to start processing

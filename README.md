@@ -66,10 +66,5 @@ npm run build
 - Select Turn on community plugins.
 - Under Installed plugins, enable the `GPT processing` plugin by selecting the toggle button next to it.
 
-## Debugging
-
-To enable debugging, toggle the corresponding option in the plugin settings.
-
-After each run of the plugin, the plugin will append the log files in `vault_directory/.obsidian/logs`
 
 You can trace errors and logs in the console. Open it with `Ctrl+Shift+I` (`Cmd+Option+I` on macOS)
