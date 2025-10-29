@@ -93,12 +93,19 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 		return;
 	}
 
-	await createBackup(plugin, view);
+    await createBackup(plugin, view);
 
-	const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-	const start_line = findPropertiesEnd(full_text);
-	const prefix = full_text.split('\n').slice(0, start_line).join('\n');
-	const body = full_text.split('\n').slice(start_line).join('\n');
+    const selText = view.editor.getSelection();
+    const hasSelection = !!selText && selText.length > 0;
+    const selFrom = hasSelection ? (view.editor as any).getCursor('from') : null;
+    const selTo = hasSelection ? (view.editor as any).getCursor('to') : null;
+
+    const full_text = hasSelection
+        ? selText
+        : view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    const start_line = hasSelection ? 0 : findPropertiesEnd(full_text);
+    const prefix = full_text.split('\n').slice(0, start_line).join('\n');
+    const body = full_text.split('\n').slice(start_line).join('\n');
 
     const effectivePrompt = plugin.settings.customPrompts?.split ?? DEFAULT_SPLIT_PROMPT;
     const CHUNK_SIZE = plugin.settings.splitChunkSize ?? 1000;
@@ -123,12 +130,16 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 				const parsed = parseTopics(topicsResponse);
 				console.log('[topics] Single chunk: parsed topics:', parsed.map(t => `${t.n}:${t.title}`).join(', '));
 				
-				if (parsed.length > 0) {
-					const { beforeLastProcessed } = insertHeadingsExceptLast(enumerated, parsed);
-					const processed = stripEnumeration(beforeLastProcessed);
-					view.editor.replaceRange(processed, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-					console.log('[topics] Single chunk processing completed successfully');
-				} else {
+                if (parsed.length > 0) {
+                    const { beforeLastProcessed } = insertHeadingsExceptLast(enumerated, parsed);
+                    const processed = stripEnumeration(beforeLastProcessed);
+                    if (hasSelection && selFrom && selTo) {
+                        view.editor.replaceRange(processed, selFrom, selTo);
+                    } else {
+                        view.editor.replaceRange(processed, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+                    }
+                    console.log('[topics] Single chunk processing completed successfully');
+                } else {
 					console.log('[topics] Single chunk: no topics found, keeping original text');
 				}
 			}
@@ -173,20 +184,28 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 		}
 		if (!topicsResponse) {
 			console.warn(`[topics] Iteration ${iteration}: empty topics, appending chunk as-is`);
-			result += chunk;
-			N = K;
-			view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            result += chunk;
+            N = K;
+            if (hasSelection && selFrom && selTo) {
+                view.editor.replaceRange(result, selFrom, selTo);
+            } else {
+                view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
 			continue;
 		}
 
 		const parsed = parseTopics(topicsResponse);
 		console.log(`[topics] Iteration ${iteration}: parsed topics:`, parsed.map(t => `${t.n}:${t.title}`).join(', '));
 
-		if (parsed.length === 0) {
+        if (parsed.length === 0) {
 			console.warn(`[topics] Iteration ${iteration}: no valid topics parsed, appending chunk as-is`);
 			result += chunk;
 			N = K;
-			view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            if (hasSelection && selFrom && selTo) {
+                view.editor.replaceRange(result, selFrom, selTo);
+            } else {
+                view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
 			continue;
 		}
 
@@ -202,7 +221,9 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 			result += processed;
 			N = K;
 			console.log(`[topics] Iteration ${iteration}: single topic inserted, next N=${N}`);
-			view.editor.replaceRange(result + (remaining ? `\n\n[...обработка продолжается...]` : ''), { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            if (!hasSelection) {
+                view.editor.replaceRange(result + (remaining ? `\n\n[...обработка продолжается...]` : ''), { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
 			if (!remaining) break;
 			continue;
 		}
@@ -224,8 +245,10 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 			console.log(`[topics] Iteration ${iteration}: next N computed via last token → ${N}`);
 		}
 
-		// Live preview update
-		view.editor.replaceRange(result + (N < body.length ? `\n\n[...обработка продолжается...]` : ''), { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        // Live preview update (only for full-note mode)
+        if (!hasSelection) {
+            view.editor.replaceRange(result + (N < body.length ? `\n\n[...обработка продолжается...]` : ''), { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        }
 		console.log(`[topics] Iteration ${iteration}: editor updated, result.length=${result.length}`);
 
 		// Safety: stop if no progress
@@ -235,8 +258,12 @@ export async function divide_by_topics(plugin: TextProcessingPlugin) {
 		}
 	}
 
-	// Final write
-	view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    // Final write
+    if (hasSelection && selFrom && selTo) {
+        view.editor.replaceRange(result, selFrom, selTo);
+    } else {
+        view.editor.replaceRange(result, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    }
 	console.log(`[topics] DONE - iterations=${iteration}, final length=${result.length}`);
 }
 
@@ -254,13 +281,21 @@ export async function summarize(plugin: TextProcessingPlugin) {
 
 	// Check if there is an active markdown view
 	if (view) {
-		// Create backup before processing
-		await createBackup(plugin, view);
-		// Get the full text from the editor
-		const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-		const start_line = findPropertiesEnd(full_text);
-		const prefix = full_text.split('\n').slice(0, start_line).join('\n');
-		let text_to_process = full_text.split('\n').slice(start_line).join('\n');
+        // Create backup before processing
+        await createBackup(plugin, view);
+        // Selection-aware input
+        const selText = view.editor.getSelection();
+        const hasSelection = !!selText && selText.length > 0;
+        const selFrom = hasSelection ? (view.editor as any).getCursor('from') : null;
+        const selTo = hasSelection ? (view.editor as any).getCursor('to') : null;
+
+        // Get the text source (selection or whole note)
+        const full_text = hasSelection
+            ? selText
+            : view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        const start_line = hasSelection ? 0 : findPropertiesEnd(full_text);
+        const prefix = full_text.split('\n').slice(0, start_line).join('\n');
+        let text_to_process = full_text.split('\n').slice(start_line).join('\n');
 		const original_text = text_to_process; // Сохраняем оригинальный текст
 
         // Resolve effective prompt once and log it
@@ -335,10 +370,12 @@ export async function summarize(plugin: TextProcessingPlugin) {
             // Add the summary to the summary block with wrapper
             summaryBlock += '<<' + current_processed_summary + '>>\n';
 
-            // Live update in editor - show current summary block + remaining text
-            const remainingIndicator = remaining ? `\n\n[...обработка продолжается...]` : '';
-            const currentContent = prefix + '\n\n' + summaryBlock + '```\n\n' + text_to_process + remainingIndicator;
-            view.editor.replaceRange(currentContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            // Live update in editor for full-note mode only
+            if (!hasSelection) {
+                const remainingIndicator = remaining ? `\n\n[...обработка продолжается...]` : '';
+                const currentContent = prefix + '\n\n' + summaryBlock + '```\n\n' + text_to_process + remainingIndicator;
+                view.editor.replaceRange(currentContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
 
 			// If there is no remaining text, exit the loop
 			if (!remaining) {
@@ -482,14 +519,22 @@ export async function summarize(plugin: TextProcessingPlugin) {
             // Replace accumulated summaries with final summary
             const finalSummaryBlock = '```\n' + cleaned_final_summary + '\n```';
             const finalContent = prefix + '\n\n' + finalSummaryBlock + '\n\n' + original_text;
-            view.editor.replaceRange(finalContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            if (hasSelection && selFrom && selTo) {
+                view.editor.replaceRange(finalContent, selFrom, selTo);
+            } else {
+                view.editor.replaceRange(finalContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
             
             console.log('[summary] ===== ОБРАБОТКА ЗАВЕРШЕНА =====');
         } else {
             console.log('[summary] Нет накопленных ответов для финальной обработки');
             // No summaries accumulated, just close the block
             const finalContent = prefix + '\n\n' + summaryBlock + '```\n\n' + original_text;
-            view.editor.replaceRange(finalContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            if (hasSelection && selFrom && selTo) {
+                view.editor.replaceRange(finalContent, selFrom, selTo);
+            } else {
+                view.editor.replaceRange(finalContent, { line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+            }
         }
 	} else {
 		new Notice('No active markdown view');
@@ -516,8 +561,15 @@ export async function cosmetic_cleanup(plugin: TextProcessingPlugin) {
 
     await createBackup(plugin, view);
 
-    const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
-    const start_line = findPropertiesEnd(full_text);
+    const selText = view.editor.getSelection();
+    const hasSelection = !!selText && selText.length > 0;
+    const selFrom = hasSelection ? (view.editor as any).getCursor('from') : null;
+    const selTo = hasSelection ? (view.editor as any).getCursor('to') : null;
+
+    const full_text = hasSelection
+        ? selText
+        : view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    const start_line = hasSelection ? 0 : findPropertiesEnd(full_text);
     const prefix = full_text.split('\n').slice(0, start_line).join('\n');
     const body = full_text.split('\n').slice(start_line).join('\n');
 
@@ -540,7 +592,11 @@ export async function cosmetic_cleanup(plugin: TextProcessingPlugin) {
             const cleaned = response ?? entireTextChunk;
             
             if (cleaned) {
-                view.editor.replaceRange(cleaned, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+                if (hasSelection && selFrom && selTo) {
+                    view.editor.replaceRange(cleaned, selFrom, selTo);
+                } else {
+                    view.editor.replaceRange(cleaned, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+                }
                 console.log('[cosmetic] Single chunk processing completed successfully');
             }
         } catch (e) {
@@ -622,7 +678,9 @@ export async function cosmetic_cleanup(plugin: TextProcessingPlugin) {
         console.log(`[cosmetic] Iteration ${iteration}: inserted processed text at [${insertStartPos}, ${insertEndPos}], new original.length=${original.length}`);
 
         // Update the editor with the processed text
-        view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        if (!hasSelection) {
+            view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        }
         console.log(`[cosmetic] Iteration ${iteration}: editor updated`);
 
         // Move to next position (after the processed chunk in the updated text)
@@ -634,7 +692,11 @@ export async function cosmetic_cleanup(plugin: TextProcessingPlugin) {
     }
 
     // Final write
-    view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    if (hasSelection && selFrom && selTo) {
+        view.editor.replaceRange(original, selFrom, selTo);
+    } else {
+        view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    }
     console.log(`[cosmetic] DONE - iterations=${iteration}, final length=${original.length}`);
 }
 
@@ -661,9 +723,16 @@ export async function punctuate(plugin: TextProcessingPlugin) {
     // Create backup before processing
     await createBackup(plugin, view);
 
-    const full_text = view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    const selText = view.editor.getSelection();
+    const hasSelection = !!selText && selText.length > 0;
+    const selFrom = hasSelection ? (view.editor as any).getCursor('from') : null;
+    const selTo = hasSelection ? (view.editor as any).getCursor('to') : null;
+
+    const full_text = hasSelection
+        ? selText
+        : view.editor.getRange({ line: 0, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
     console.log('[punctuate] fullText.length:', full_text.length);
-    const start_line = findPropertiesEnd(full_text);
+    const start_line = hasSelection ? 0 : findPropertiesEnd(full_text);
     console.log('[punctuate] propertiesEndLine:', start_line);
     const prefix = full_text.split('\n').slice(0, start_line).join('\n');
     let original = full_text.split('\n').slice(start_line).join('\n');
@@ -702,7 +771,9 @@ export async function punctuate(plugin: TextProcessingPlugin) {
         console.log('[punctuate] Optimization: entire text fits in one chunk, processing without sentence splitting');
         
         // Update the editor with the text without punctuation
-        view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        if (!hasSelection) {
+            view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        }
         
         // Process the entire text at once
         try {
@@ -725,7 +796,11 @@ export async function punctuate(plugin: TextProcessingPlugin) {
             const processed = response ?? entireTextChunk;
             
             if (processed) {
-                view.editor.replaceRange(processed, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+                if (hasSelection && selFrom && selTo) {
+                    view.editor.replaceRange(processed, selFrom, selTo);
+                } else {
+                    view.editor.replaceRange(processed, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+                }
                 console.log('[punctuate] Single chunk processing completed successfully');
             }
         } catch (e) {
@@ -880,7 +955,9 @@ Output:
         console.log(`[punctuate] Итерация ${iteration} Шаг 9: inserted processed text at [${insertStartPos}, ${insertEndPos}], new length: ${original.length}`);
 
         // Update the editor with the processed text
-        view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        if (!hasSelection) {
+            view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+        }
 
         // Find the next starting position based on N position in the updated text
         if (previousSentenceEnd && previousSentenceEnd.position > 0) {
@@ -907,6 +984,10 @@ Output:
     console.log('[punctuate] final text length:', original.length);
 
     // Write the final result back to the editor
-    view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    if (hasSelection && selFrom && selTo) {
+        view.editor.replaceRange(original, selFrom, selTo);
+    } else {
+        view.editor.replaceRange(original, { line: start_line, ch: 0 }, { line: view.editor.lastLine() + 1, ch: 0 });
+    }
     console.log('[punctuate] done');
 }
