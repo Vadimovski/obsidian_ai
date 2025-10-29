@@ -43,7 +43,7 @@ The plugin leverages AI to automate text cleanup, topic-based splitting, and sum
 ## Troubleshooting
 
 - Open the Developer Console to see logs: `Ctrl+Shift+I` (Windows/Linux) or `Cmd+Option+I` (macOS)
-- Ensure an API key is set for OpenAI provider, or that Ollama is running locally
+- Ensure an API key is set for OpenAI provider
 
 ## Feedback
 
