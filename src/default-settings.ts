@@ -6,8 +6,7 @@ export interface pluginSettings {
 	    cosmetic: boolean;
 	backup: boolean;
 	model: string;
-	provider: 'openai' | 'ollama';
-	ollama_base_url: string;
+	provider: 'openai';
 	language?: 'en' | 'zh-CN' | 'es' | 'pt' | 'fr' | 'de' | 'ru' | 'ja';
 	// Punctuation options
 	punctuatePreserveHeadings?: boolean; // Preserve Markdown headings (#) during punctuation stripping
@@ -34,7 +33,6 @@ export const DEFAULT_SETTINGS: pluginSettings = {
 	backup: true,
 	model: 'gpt-4o-mini',
 	provider: 'openai',
-	ollama_base_url: 'http://localhost:11434',
 	language: 'en',
 	punctuatePreserveHeadings: true,
 	punctuateChunkSize: 1000,

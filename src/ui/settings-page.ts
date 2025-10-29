@@ -17,10 +17,8 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 	display(): void {
 		this.clearContainer(); // Clear the existing container elements
 		this.createLanguageDropdown();
-		this.createProviderDropdown();
 		this.createApiKeySetting(); // Create the API key setting
 		this.createModelDropdown(); // Create the model dropdown
-		this.createOllamaUrlSetting();
 	}
 
 	// Method to clear the container of previous settings
@@ -59,28 +57,9 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 		});
 	}
 
-	// Provider select
-	private createProviderDropdown(): void {
-		new Setting(this.containerEl)
-			.setName(t(this.plugin.settings.language, "provider"))
-			.setDesc(t(this.plugin.settings.language, "provider_desc"))
-			.addDropdown(dropdown =>
-				dropdown
-					.addOptions({
-						"openai": "OpenAI",
-						"ollama": "Ollama (local)",
-					})
-					.setValue(this.plugin.settings.provider)
-					.onChange(async (value) => {
-						await this.updateSettings("provider", value);
-						this.display();
-					})
-			);
-	}
 
 	// Method to create the OpenAI API key setting
 	private createApiKeySetting(): void {
-		if (this.plugin.settings.provider !== 'openai') return;
 		new Setting(this.containerEl)
 			.setName(t(this.plugin.settings.language, "api_key"))
 			.setDesc(t(this.plugin.settings.language, "api_key_desc"))
@@ -100,15 +79,11 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 			.setDesc(t(this.plugin.settings.language, "model_desc"))
 			.addDropdown(dropdown =>
 				dropdown
-					.addOptions(this.plugin.settings.provider === 'openai' ? {
+					.addOptions({
 						"gpt-3.5-turbo-1106": "GPT-3.5-turbo",
 						"gpt-4": "GPT-4",
 						"gpt-4o": "GPT-4o",
 						"gpt-4o-mini": "GPT-4o-mini",
-					} : {
-						"llama3:latest": "llama3:latest",
-						"qwq:latest": "qwq:latest",
-						"bge-m3:latest": "bge-m3:latest",
 					})
 					.setValue(this.plugin.settings.model) // Set the initial value
 					.onChange(async (value) => this.updateSettings("model", value)) // Update the model on change
@@ -116,19 +91,6 @@ export default class TextProcessingSettingTab extends PluginSettingTab {
 
 	}
 
-	// Ollama URL setting
-	private createOllamaUrlSetting(): void {
-		if (this.plugin.settings.provider !== 'ollama') return;
-		new Setting(this.containerEl)
-			.setName(t(this.plugin.settings.language, "ollama_url"))
-			.setDesc(t(this.plugin.settings.language, "ollama_url_desc"))
-			.addText(text =>
-				text
-					.setPlaceholder("http://localhost:11434")
-					.setValue(this.plugin.settings.ollama_base_url)
-					.onChange(async (value) => this.updateSettings("ollama_base_url", value))
-			);
-	}
 
 
 

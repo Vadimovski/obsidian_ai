@@ -1,17 +1,10 @@
 import TextProcessingPlugin from "#/main";
 import { getChatGPTResponse } from "#/providers/openai";
-import { getOllamaResponse } from "#/providers/ollama";
 import { Notice } from "obsidian";
 import { DEFAULT_SUMMARIZE_PROMPT, DEFAULT_SPLIT_PROMPT, DEFAULT_COSMETIC_PROMPT } from "#/helpers/prompts";
 
-// Unified router by provider (OpenAI/Ollama)
+// OpenAI provider
 export async function llmResponse(system_prompt: string, user_prompt: string, plugin: TextProcessingPlugin, opts?: { temperature?: number; top_p?: number; }): Promise<string> {
-    const provider = plugin.settings.provider;
-    if (provider === 'ollama') {
-        // No API key required; uses plugin.settings.ollama_base_url and model
-        return await getOllamaResponse(system_prompt, user_prompt, plugin, opts);
-    }
-    // Default: OpenAI
     return await getChatGPTResponse(system_prompt, user_prompt, plugin, opts);
 }
 
